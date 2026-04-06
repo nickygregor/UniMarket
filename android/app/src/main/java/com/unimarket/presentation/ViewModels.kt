@@ -1,0 +1,238 @@
+package com.unimarket.presentation
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.unimarket.data.local.TokenManager
+import com.unimarket.data.repository.*
+import com.unimarket.domain.model.*
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+
+// ════════════════════════════════════════════════════════════════════
+//  UI State helpers
+// ════════════════════════════════════════════════════════════════════
+
+sealed class UiState<out T> {
+    object Idle    : UiState<Nothing>()
+    object Loading : UiState<Nothing>()
+    data class Success<T>(val data: T) : UiState<T>()
+    data class Error(val msg: String)  : UiState<Nothing>()
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  AUTH VIEW MODEL
+// ════════════════════════════════════════════════════════════════════
+
+class AuthViewModel(
+    private val repo         : AuthRepository,
+    private val tokenManager : TokenManager
+) : ViewModel() {
+
+    private val _authState = MutableStateFlow<UiState<AuthResponse>>(UiState.Idle)
+    val authState: StateFlow<UiState<AuthResponse>> = _authState.asStateFlow()
+
+    val currentUser: StateFlow<User?> = tokenManager.user
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    fun login(userId: String, password: String) = viewModelScope.launch {
+        _authState.value = UiState.Loading
+        when (val r = repo.login(LoginRequest(userId, password))) {
+            is Result.Success -> {
+                tokenManager.saveSession(r.data.token, r.data.user)
+                _authState.value = UiState.Success(r.data)
+            }
+            is Result.Error   -> _authState.value = UiState.Error(r.message)
+        }
+    }
+
+    fun register(
+        firstName: String, lastName: String, email: String,
+        phone: String, userId: String, password: String, role: String
+    ) = viewModelScope.launch {
+        _authState.value = UiState.Loading
+        val req = RegisterRequest(firstName, lastName, email, phone, userId, password, role)
+        when (val r = repo.register(req)) {
+            is Result.Success -> {
+                tokenManager.saveSession(r.data.token, r.data.user)
+                _authState.value = UiState.Success(r.data)
+            }
+            is Result.Error   -> _authState.value = UiState.Error(r.message)
+        }
+    }
+
+    fun logout() = viewModelScope.launch {
+        repo.logout()
+        _authState.value = UiState.Idle
+    }
+
+    fun resetState() { _authState.value = UiState.Idle }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  BUYER VIEW MODEL
+// ════════════════════════════════════════════════════════════════════
+
+class BuyerViewModel(
+    private val listingRepo : ListingRepository,
+    private val cartRepo    : CartRepository,
+    private val orderRepo   : OrderRepository
+) : ViewModel() {
+
+    private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
+    val listings: StateFlow<UiState<List<Listing>>> = _listings.asStateFlow()
+
+    private val _cart = MutableStateFlow<UiState<Cart>>(UiState.Idle)
+    val cart: StateFlow<UiState<Cart>> = _cart.asStateFlow()
+
+    private val _orders = MutableStateFlow<UiState<List<Order>>>(UiState.Idle)
+    val orders: StateFlow<UiState<List<Order>>> = _orders.asStateFlow()
+
+    private val _checkoutResult = MutableStateFlow<UiState<Order>>(UiState.Idle)
+    val checkoutResult: StateFlow<UiState<Order>> = _checkoutResult.asStateFlow()
+
+    private val _toast = MutableSharedFlow<String>()
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
+    fun loadListings(keyword: String? = null, category: String? = null) = viewModelScope.launch {
+        _listings.value = UiState.Loading
+        when (val r = listingRepo.getListings(keyword, category)) {
+            is Result.Success -> _listings.value = UiState.Success(r.data)
+            is Result.Error   -> _listings.value = UiState.Error(r.message)
+        }
+    }
+
+    fun loadCart() = viewModelScope.launch {
+        _cart.value = UiState.Loading
+        when (val r = cartRepo.getCart()) {
+            is Result.Success -> _cart.value = UiState.Success(r.data)
+            is Result.Error   -> _cart.value = UiState.Error(r.message)
+        }
+    }
+
+    fun addToCart(listingId: Int, qty: Int = 1) = viewModelScope.launch {
+        when (val r = cartRepo.addItem(AddToCartRequest(listingId, qty))) {
+            is Result.Success -> { _toast.emit("Added to cart ✓"); loadCart() }
+            is Result.Error   -> _toast.emit(r.message)
+        }
+    }
+
+    fun removeFromCart(cartItemId: Int) = viewModelScope.launch {
+        when (val r = cartRepo.removeItem(cartItemId)) {
+            is Result.Success -> { _toast.emit("Item removed"); loadCart() }
+            is Result.Error   -> _toast.emit(r.message)
+        }
+    }
+
+    fun checkout() = viewModelScope.launch {
+        _checkoutResult.value = UiState.Loading
+        when (val r = orderRepo.checkout()) {
+            is Result.Success -> {
+                _checkoutResult.value = UiState.Success(r.data)
+                loadCart()
+            }
+            is Result.Error   -> _checkoutResult.value = UiState.Error(r.message)
+        }
+    }
+
+    fun loadOrders() = viewModelScope.launch {
+        _orders.value = UiState.Loading
+        when (val r = orderRepo.getOrders()) {
+            is Result.Success -> _orders.value = UiState.Success(r.data)
+            is Result.Error   -> _orders.value = UiState.Error(r.message)
+        }
+    }
+
+    fun resetCheckout() { _checkoutResult.value = UiState.Idle }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  SELLER VIEW MODEL
+// ════════════════════════════════════════════════════════════════════
+
+class SellerViewModel(
+    private val repo: ListingRepository
+) : ViewModel() {
+
+    private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
+    val listings: StateFlow<UiState<List<Listing>>> = _listings.asStateFlow()
+
+    private val _actionResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val actionResult: StateFlow<UiState<Unit>> = _actionResult.asStateFlow()
+
+    private val _toast = MutableSharedFlow<String>()
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
+    fun loadMyListings() = viewModelScope.launch {
+        _listings.value = UiState.Loading
+        when (val r = repo.getMyListings()) {
+            is Result.Success -> _listings.value = UiState.Success(r.data)
+            is Result.Error   -> _listings.value = UiState.Error(r.message)
+        }
+    }
+
+    fun createListing(title: String, desc: String, price: Double, cat: String, img: String?) =
+        viewModelScope.launch {
+            _actionResult.value = UiState.Loading
+            val req = CreateListingRequest(title, desc, price, cat, img)
+            when (val r = repo.create(req)) {
+                is Result.Success -> { _toast.emit("Listing created!"); loadMyListings(); _actionResult.value = UiState.Success(Unit) }
+                is Result.Error   -> { _toast.emit(r.message); _actionResult.value = UiState.Error(r.message) }
+            }
+        }
+
+    fun updateListing(id: Int, title: String?, desc: String?, price: Double?, cat: String?) =
+        viewModelScope.launch {
+            val req = UpdateListingRequest(title, desc, price, cat)
+            when (val r = repo.update(id, req)) {
+                is Result.Success -> { _toast.emit("Listing updated!"); loadMyListings() }
+                is Result.Error   -> _toast.emit(r.message)
+            }
+        }
+
+    fun deleteListing(id: Int) = viewModelScope.launch {
+        when (val r = repo.delete(id)) {
+            is Result.Success -> { _toast.emit("Listing deleted"); loadMyListings() }
+            is Result.Error   -> _toast.emit(r.message)
+        }
+    }
+
+    fun resetAction() { _actionResult.value = UiState.Idle }
+}
+
+// ════════════════════════════════════════════════════════════════════
+//  ADMIN VIEW MODEL
+// ════════════════════════════════════════════════════════════════════
+
+class AdminViewModel(
+    private val repo: AdminRepository
+) : ViewModel() {
+
+    private val _users = MutableStateFlow<UiState<List<User>>>(UiState.Idle)
+    val users: StateFlow<UiState<List<User>>> = _users.asStateFlow()
+
+    private val _toast = MutableSharedFlow<String>()
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
+    fun loadUsers() = viewModelScope.launch {
+        _users.value = UiState.Loading
+        when (val r = repo.getAllUsers()) {
+            is Result.Success -> _users.value = UiState.Success(r.data)
+            is Result.Error   -> _users.value = UiState.Error(r.message)
+        }
+    }
+
+    fun toggleUser(id: Int, currentlyActive: Boolean) = viewModelScope.launch {
+        val r = if (currentlyActive) repo.deactivateUser(id) else repo.activateUser(id)
+        when (r) {
+            is Result.Success -> { _toast.emit(r.data.message); loadUsers() }
+            is Result.Error   -> _toast.emit(r.message)
+        }
+    }
+
+    fun deleteListing(id: Int) = viewModelScope.launch {
+        when (val r = repo.deleteListing(id)) {
+            is Result.Success -> _toast.emit("Listing removed")
+            is Result.Error   -> _toast.emit(r.message)
+        }
+    }
+}

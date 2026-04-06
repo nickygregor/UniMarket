@@ -1,0 +1,10 @@
+R_DEF: Internal format may change without notice
+local
+color blue
+color error
+color navy
+color surface
+color teal
+color white
+string app_name
+style Theme.UniMarket
