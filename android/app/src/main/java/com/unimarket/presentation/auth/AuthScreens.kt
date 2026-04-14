@@ -1,276 +1,565 @@
 package com.unimarket.presentation.auth
 
-import androidx.compose.animation.*
-import androidx.compose.foundation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
-import androidx.compose.ui.unit.*
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.unimarket.presentation.AuthViewModel
 import com.unimarket.presentation.UiState
 
-// ── Brand Colors ──────────────────────────────────────────────────────────────
-val UniBlue   = Color(0xFF1A73E8)
-val UniNavy   = Color(0xFF0D1B2A)
-val UniAccent = Color(0xFF00C896)
+val UniBlue = Color(0xFF7CB8FF)
+val UniNavy = Color(0xFF081420)
+val UniNavyLight = Color(0xFF132235)
+val UniSurface = Color(0xFF18283B)
+val UniSurfaceBorder = Color(0x33FFFFFF)
+val UniAccent = Color(0xFF20D6A7)
+val UniTextMuted = Color(0xFFB8C7D9)
+val UniError = Color(0xFFFF7A7A)
 
-// ════════════════════════════════════════════════════════════════════
-//  LOGIN SCREEN
-// ════════════════════════════════════════════════════════════════════
+private fun isValidUtaEmail(email: String): Boolean {
+    return email.trim().lowercase()
+        .matches(Regex("^[a-zA-Z0-9._%+-]+@mavs\\.uta\\.edu$"))
+}
 
 @Composable
 fun LoginScreen(
-    viewModel  : AuthViewModel,
-    onSuccess  : (role: String) -> Unit,
-    onRegister : () -> Unit
+    viewModel: AuthViewModel,
+    onSuccess: () -> Unit,
+    onRegister: () -> Unit
 ) {
     val state by viewModel.authState.collectAsState()
-    var userId   by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var showPwd  by remember { mutableStateOf(false) }
+    var showPwd by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(state) {
         if (state is UiState.Success) {
-            val role = (state as UiState.Success).data.user.role
-            onSuccess(role)
+            onSuccess()
             viewModel.resetState()
         }
+
         if (state is UiState.Error) {
-            errorMsg = (state as UiState.Error).msg
+            val msg = (state as UiState.Error).msg
+            errorMsg = if (msg.contains("Failed to connect", ignoreCase = true)) {
+                null
+            } else {
+                msg
+            }
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(UniNavy, Color(0xFF1C2B3A))))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp)
-                .align(Alignment.Center),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Logo / Title
-            Icon(
-                imageVector = Icons.Filled.Store,
-                contentDescription = null,
-                tint    = UniAccent,
-                modifier = Modifier.size(72.dp)
+    AuthScreenContainer {
+        AuthHeader(
+            title = "UniMarket",
+            subtitle = "Buy and sell across campus"
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        AuthCard {
+            Text(
+                text = "Welcome back",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
             )
-            Text("UniMarket", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Your campus marketplace", fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f))
 
-            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Sign in to continue",
+                fontSize = 14.sp,
+                color = UniTextMuted
+            )
 
-            // User ID field
+            Spacer(Modifier.height(20.dp))
+
             UniTextField(
-                value        = userId,
-                onValueChange = { userId = it; errorMsg = null },
-                label        = "User ID",
-                leadingIcon  = Icons.Filled.Person
+                value = username,
+                onValueChange = {
+                    username = it
+                    errorMsg = null
+                },
+                label = "Username",
+                leadingIcon = Icons.Filled.Person
             )
 
-            // Password field
+            Spacer(Modifier.height(12.dp))
+
             UniTextField(
-                value         = password,
-                onValueChange = { password = it; errorMsg = null },
-                label         = "Password",
-                leadingIcon   = Icons.Filled.Lock,
-                isPassword    = true,
-                showPassword  = showPwd,
-                onTogglePwd   = { showPwd = !showPwd }
+                value = password,
+                onValueChange = {
+                    password = it
+                    errorMsg = null
+                },
+                label = "Password",
+                leadingIcon = Icons.Filled.Lock,
+                isPassword = true,
+                showPassword = showPwd,
+                onTogglePwd = { showPwd = !showPwd }
             )
 
-            // Error
+            Spacer(Modifier.height(14.dp))
+
             AnimatedVisibility(visible = errorMsg != null) {
                 Text(
-                    text     = errorMsg ?: "",
-                    color    = MaterialTheme.colorScheme.error,
-                    fontSize = 13.sp
+                    text = errorMsg ?: "",
+                    color = UniError,
+                    fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
 
-            // Login Button
+            if (errorMsg != null) {
+                Spacer(Modifier.height(10.dp))
+            }
+
             Button(
-                onClick  = { viewModel.login(userId.trim(), password) },
-                enabled  = userId.isNotBlank() && password.isNotBlank() && state !is UiState.Loading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = UniAccent),
-                shape    = RoundedCornerShape(12.dp)
+                onClick = { viewModel.login(username.trim(), password) },
+                enabled = username.isNotBlank() && password.isNotBlank() && state !is UiState.Loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = UniAccent,
+                    disabledContainerColor = UniAccent.copy(alpha = 0.45f)
+                ),
+                shape = RoundedCornerShape(14.dp)
             ) {
                 if (state is UiState.Loading) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
                 } else {
-                    Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                }
-            }
-
-            TextButton(onClick = onRegister) {
-                Text("Don't have an account? Register", color = UniBlue)
-            }
-        }
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════
-//  REGISTER SCREEN
-// ════════════════════════════════════════════════════════════════════
-
-@Composable
-fun RegisterScreen(
-    viewModel : AuthViewModel,
-    onSuccess : (role: String) -> Unit,
-    onLogin   : () -> Unit
-) {
-    val state by viewModel.authState.collectAsState()
-    var firstName by remember { mutableStateOf("") }
-    var lastName  by remember { mutableStateOf("") }
-    var email     by remember { mutableStateOf("") }
-    var phone     by remember { mutableStateOf("") }
-    var userId    by remember { mutableStateOf("") }
-    var password  by remember { mutableStateOf("") }
-    var role      by remember { mutableStateOf("BUYER") }
-    var showPwd   by remember { mutableStateOf(false) }
-    var errorMsg  by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(state) {
-        if (state is UiState.Success) {
-            onSuccess((state as UiState.Success).data.user.role)
-            viewModel.resetState()
-        }
-        if (state is UiState.Error) errorMsg = (state as UiState.Error).msg
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(UniNavy, Color(0xFF1C2B3A))))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Spacer(Modifier.height(32.dp))
-            Text("Create Account", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Text("Join UniMarket today", fontSize = 14.sp, color = Color.White.copy(alpha = 0.6f))
-            Spacer(Modifier.height(8.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                UniTextField(firstName, { firstName = it; errorMsg = null }, "First Name", Icons.Filled.Person, Modifier.weight(1f))
-                UniTextField(lastName,  { lastName  = it; errorMsg = null }, "Last Name",  Icons.Filled.Person, Modifier.weight(1f))
-            }
-            UniTextField(email,    { email  = it; errorMsg = null }, "Email",        Icons.Filled.Email,  keyboardType = KeyboardType.Email)
-            UniTextField(phone,    { phone  = it; errorMsg = null }, "Phone Number", Icons.Filled.Phone,  keyboardType = KeyboardType.Phone)
-            UniTextField(userId,   { userId = it; errorMsg = null }, "User ID",      Icons.Filled.Badge)
-            UniTextField(
-                value         = password,
-                onValueChange = { password = it; errorMsg = null },
-                label         = "Password",
-                leadingIcon   = Icons.Filled.Lock,
-                isPassword    = true,
-                showPassword  = showPwd,
-                onTogglePwd   = { showPwd = !showPwd }
-            )
-
-            // Role selector
-            Text("I am a:", color = Color.White, fontWeight = FontWeight.Medium)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf("BUYER", "SELLER").forEach { r ->
-                    FilterChip(
-                        selected = role == r,
-                        onClick  = { role = r },
-                        label    = { Text(r.lowercase().replaceFirstChar { it.uppercase() }) },
-                        colors   = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = UniAccent,
-                            selectedLabelColor     = Color.White
-                        )
+                    Text(
+                        text = "Sign In",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
                     )
                 }
             }
 
-            AnimatedVisibility(visible = errorMsg != null) {
-                Text(errorMsg ?: "", color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-            }
+            Spacer(Modifier.height(10.dp))
 
-            Button(
-                onClick  = { viewModel.register(firstName, lastName, email, phone, userId, password, role) },
-                enabled  = listOf(firstName, lastName, email, userId, password).all { it.isNotBlank() } && state !is UiState.Loading,
-                modifier = Modifier.fillMaxWidth().height(52.dp),
-                colors   = ButtonDefaults.buttonColors(containerColor = UniAccent),
-                shape    = RoundedCornerShape(12.dp)
+            TextButton(
+                onClick = onRegister,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (state is UiState.Loading)
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                else
-                    Text("Create Account", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(
+                    text = "Don't have an account? Register",
+                    color = UniBlue,
+                    fontSize = 14.sp
+                )
             }
-
-            TextButton(onClick = onLogin) {
-                Text("Already have an account? Sign in", color = UniBlue)
-            }
-            Spacer(Modifier.height(16.dp))
         }
     }
 }
 
-// ════════════════════════════════════════════════════════════════════
-//  SHARED UI COMPONENT
-// ════════════════════════════════════════════════════════════════════
+@Composable
+fun RegisterScreen(
+    viewModel: AuthViewModel,
+    onSuccess: () -> Unit,
+    onLogin: () -> Unit
+) {
+    val state by viewModel.authState.collectAsState()
+
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var showPwd by remember { mutableStateOf(false) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(state) {
+        if (state is UiState.Success) {
+            onSuccess()
+            viewModel.resetState()
+        }
+
+        if (state is UiState.Error) {
+            val msg = (state as UiState.Error).msg
+            errorMsg = if (msg.contains("Failed to connect", ignoreCase = true)) {
+                null
+            } else {
+                msg
+            }
+        }
+    }
+
+    AuthScreenContainer(scrollable = true) {
+        AuthHeader(
+            title = "Create Account",
+            subtitle = "Join the UTA marketplace"
+        )
+
+        Spacer(Modifier.height(24.dp))
+
+        AuthCard {
+            Text(
+                text = "Student sign up",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Text(
+                text = "One account can both buy and sell",
+                fontSize = 14.sp,
+                color = UniTextMuted
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                UniTextField(
+                    value = firstName,
+                    onValueChange = {
+                        firstName = it
+                        errorMsg = null
+                    },
+                    label = "First Name",
+                    leadingIcon = Icons.Filled.Person,
+                    modifier = Modifier.weight(1f)
+                )
+
+                UniTextField(
+                    value = lastName,
+                    onValueChange = {
+                        lastName = it
+                        errorMsg = null
+                    },
+                    label = "Last Name",
+                    leadingIcon = Icons.Filled.Person,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            UniTextField(
+                value = email,
+                onValueChange = {
+                    email = it
+                    errorMsg = null
+                },
+                label = "UTA Email",
+                leadingIcon = Icons.Filled.Email,
+                keyboardType = KeyboardType.Email
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            Text(
+                text = "UTA students only: use your @mavs.uta.edu email",
+                fontSize = 12.sp,
+                color = UniTextMuted,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            UniTextField(
+                value = phone,
+                onValueChange = {
+                    phone = it
+                    errorMsg = null
+                },
+                label = "Phone Number",
+                leadingIcon = Icons.Filled.Phone,
+                keyboardType = KeyboardType.Phone
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            UniTextField(
+                value = username,
+                onValueChange = {
+                    username = it
+                    errorMsg = null
+                },
+                label = "Username",
+                leadingIcon = Icons.Filled.Badge
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            UniTextField(
+                value = password,
+                onValueChange = {
+                    password = it
+                    errorMsg = null
+                },
+                label = "Password",
+                leadingIcon = Icons.Filled.Lock,
+                isPassword = true,
+                showPassword = showPwd,
+                onTogglePwd = { showPwd = !showPwd }
+            )
+
+            Spacer(Modifier.height(14.dp))
+
+            AnimatedVisibility(visible = errorMsg != null) {
+                Text(
+                    text = errorMsg ?: "",
+                    color = UniError,
+                    fontSize = 13.sp,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            if (errorMsg != null) {
+                Spacer(Modifier.height(10.dp))
+            }
+
+            Button(
+                onClick = {
+                    val trimmedEmail = email.trim()
+
+                    when {
+                        firstName.isBlank() ||
+                                lastName.isBlank() ||
+                                trimmedEmail.isBlank() ||
+                                username.isBlank() ||
+                                password.isBlank() -> {
+                            errorMsg = "Please fill in all required fields."
+                        }
+
+                        !isValidUtaEmail(trimmedEmail) -> {
+                            errorMsg = "Please use your UTA email ending with @mavs.uta.edu"
+                        }
+
+                        else -> {
+                            errorMsg = null
+                            viewModel.register(
+                                firstName = firstName.trim(),
+                                lastName = lastName.trim(),
+                                email = trimmedEmail,
+                                phone = phone.trim(),
+                                userId = username.trim(),
+                                password = password
+                            )
+                        }
+                    }
+                },
+                enabled = state !is UiState.Loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(54.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = UniAccent,
+                    disabledContainerColor = UniAccent.copy(alpha = 0.45f)
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                if (state is UiState.Loading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = "Create Account",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            TextButton(
+                onClick = onLogin,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Already have an account? Sign in",
+                    color = UniBlue,
+                    fontSize = 14.sp
+                )
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun AuthScreenContainer(
+    scrollable: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val baseModifier = Modifier
+        .fillMaxSize()
+        .background(
+            Brush.verticalGradient(
+                listOf(
+                    UniNavy,
+                    Color(0xFF102033),
+                    UniNavyLight
+                )
+            )
+        )
+
+    if (scrollable) {
+        Column(
+            modifier = baseModifier
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            content = content
+        )
+    } else {
+        Column(
+            modifier = baseModifier
+                .padding(horizontal = 24.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun AuthHeader(
+    title: String,
+    subtitle: String
+) {
+    Icon(
+        imageVector = Icons.Filled.Store,
+        contentDescription = null,
+        tint = UniAccent,
+        modifier = Modifier.size(70.dp)
+    )
+
+    Spacer(Modifier.height(14.dp))
+
+    Text(
+        text = title,
+        fontSize = 32.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White
+    )
+
+    Text(
+        text = subtitle,
+        fontSize = 14.sp,
+        color = UniTextMuted
+    )
+}
+
+@Composable
+private fun AuthCard(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp)),
+        shape = RoundedCornerShape(24.dp),
+        color = UniSurface.copy(alpha = 0.92f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = UniSurfaceBorder
+        ),
+        shadowElevation = 10.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
+            content = content
+        )
+    }
+}
 
 @Composable
 fun UniTextField(
-    value          : String,
-    onValueChange  : (String) -> Unit,
-    label          : String,
-    leadingIcon    : androidx.compose.ui.graphics.vector.ImageVector,
-    modifier       : Modifier    = Modifier.fillMaxWidth(),
-    isPassword     : Boolean     = false,
-    showPassword   : Boolean     = false,
-    onTogglePwd    : (() -> Unit)? = null,
-    keyboardType   : KeyboardType = KeyboardType.Text
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    isPassword: Boolean = false,
+    showPassword: Boolean = false,
+    onTogglePwd: (() -> Unit)? = null,
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     OutlinedTextField(
-        value         = value,
+        value = value,
         onValueChange = onValueChange,
-        label         = { Text(label, color = Color.White.copy(alpha = 0.7f)) },
-        leadingIcon   = { Icon(leadingIcon, contentDescription = null, tint = UniAccent) },
-        trailingIcon  = if (isPassword) ({
-            IconButton(onClick = { onTogglePwd?.invoke() }) {
-                Icon(
-                    if (showPassword) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                    contentDescription = null, tint = Color.White.copy(alpha = 0.6f)
-                )
+        label = {
+            Text(
+                text = label,
+                color = Color.White.copy(alpha = 0.72f)
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = leadingIcon,
+                contentDescription = null,
+                tint = UniAccent
+            )
+        },
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { onTogglePwd?.invoke() }) {
+                    Icon(
+                        imageVector = if (showPassword) {
+                            Icons.Filled.VisibilityOff
+                        } else {
+                            Icons.Filled.Visibility
+                        },
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.65f)
+                    )
+                }
             }
-        }) else null,
-        visualTransformation = if (isPassword && !showPassword) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions      = KeyboardOptions(keyboardType = keyboardType),
-        singleLine           = true,
-        modifier             = modifier,
-        colors               = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor   = UniAccent,
-            unfocusedBorderColor = Color.White.copy(alpha = 0.3f),
-            focusedTextColor     = Color.White,
-            unfocusedTextColor   = Color.White,
-            cursorColor          = UniAccent
+        } else null,
+        visualTransformation = if (isPassword && !showPassword) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
+        },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        singleLine = true,
+        modifier = modifier,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = UniAccent,
+            unfocusedBorderColor = Color.White.copy(alpha = 0.22f),
+            focusedTextColor = Color.White,
+            unfocusedTextColor = Color.White,
+            cursorColor = UniAccent,
+            focusedLabelColor = UniAccent,
+            unfocusedLabelColor = Color.White.copy(alpha = 0.72f),
+            focusedContainerColor = Color(0x221FFFFF),
+            unfocusedContainerColor = Color(0x141FFFFF)
         ),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp)
     )
 }
