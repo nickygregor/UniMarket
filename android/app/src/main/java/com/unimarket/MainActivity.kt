@@ -3,7 +3,12 @@ package com.unimarket
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -11,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import com.unimarket.data.local.TokenManager
 import com.unimarket.data.local.UniMarketDatabase
 import com.unimarket.data.remote.RetrofitClient
+import com.unimarket.data.remote.UniMarketApi
 import com.unimarket.data.repository.AdminRepository
 import com.unimarket.data.repository.AuthRepository
 import com.unimarket.data.repository.CartRepository
@@ -44,8 +50,8 @@ object Routes {
     const val REGISTER = "register"
 
     const val BUYER_BROWSE = "buyer_browse"
-    const val BUYER_CART = "buyer_cart"
     const val BUYER_DETAIL = "buyer_detail"
+    const val BUYER_CART = "buyer_cart"
     const val BUYER_CONFIRMATION = "buyer_confirmation"
     const val BUYER_ORDERS = "buyer_orders"
 
@@ -69,6 +75,7 @@ class MainActivity : ComponentActivity() {
             when (tokenManager.user.first()?.role) {
                 "BUYER" -> Routes.BUYER_BROWSE
                 "SELLER" -> Routes.SELLER_DASHBOARD
+                "BUYER_SELLER" -> Routes.BUYER_BROWSE
                 "ADMIN" -> Routes.ADMIN_DASHBOARD
                 else -> Routes.LOGIN
             }
@@ -88,7 +95,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun UniMarketApp(
     tokenManager: TokenManager,
-    api: com.unimarket.data.remote.UniMarketApi,
+    api: UniMarketApi,
     db: UniMarketDatabase,
     startDest: String
 ) {
@@ -114,24 +121,26 @@ fun UniMarketApp(
     )
 
     val currentUser by authVM.currentUser.collectAsState()
-
     var selectedListing by remember { mutableStateOf<Listing?>(null) }
     var editingListing by remember { mutableStateOf<Listing?>(null) }
 
     fun logout() {
         authVM.logout()
+        selectedListing = null
+        editingListing = null
         navController.navigate(Routes.LOGIN) {
-            popUpTo(0) { inclusive = true }
+            popUpTo(id = 0) { inclusive = true }
         }
     }
 
     fun routeByRole(role: String) {
         val dest = when (role) {
-            "BUYER" -> Routes.BUYER_BROWSE
+            "BUYER", "BUYER_SELLER" -> Routes.BUYER_BROWSE
             "SELLER" -> Routes.SELLER_DASHBOARD
             "ADMIN" -> Routes.ADMIN_DASHBOARD
             else -> Routes.LOGIN
         }
+
         navController.navigate(dest) {
             popUpTo(Routes.LOGIN) { inclusive = true }
         }
@@ -144,32 +153,53 @@ fun UniMarketApp(
         composable(Routes.LOGIN) {
             LoginScreen(
                 viewModel = authVM,
-                onSuccess = { routeByRole("BUYER") },
-                onRegister = { navController.navigate(Routes.REGISTER) }
+                onSuccess = {
+                    routeByRole(currentUser?.role ?: "BUYER_SELLER")
+                },
+                onRegister = {
+                    navController.navigate(Routes.REGISTER)
+                }
             )
         }
 
         composable(Routes.REGISTER) {
             RegisterScreen(
                 viewModel = authVM,
-                onSuccess = { routeByRole("BUYER") },
-                onLogin = { navController.popBackStack() }
+                onSuccess = {
+                    routeByRole(currentUser?.role ?: "BUYER_SELLER")
+                },
+                onLogin = {
+                    navController.popBackStack()
+                }
             )
         }
 
         composable(Routes.BUYER_BROWSE) {
             BrowseScreen(
                 viewModel = buyerVM,
+                currentUserId = currentUser?.id,
                 onViewListing = { listing ->
                     selectedListing = listing
                     navController.navigate(Routes.BUYER_DETAIL)
                 },
-                onCartClick = { navController.navigate(Routes.BUYER_CART) },
-                onLogout = { logout() },
-                onOrdersClick = { navController.navigate(Routes.BUYER_ORDERS) },
-                onProfileClick = { navController.navigate(Routes.PROFILE) },
-                onMyListingsClick = { navController.navigate(Routes.SELLER_DASHBOARD) },
-                onSellClick = { navController.navigate(Routes.SELLER_CREATE) }
+                onCartClick = {
+                    navController.navigate(Routes.BUYER_CART)
+                },
+                onProfileClick = {
+                    navController.navigate(Routes.PROFILE)
+                },
+                onLogout = {
+                    logout()
+                },
+                onOrdersClick = {
+                    navController.navigate(Routes.BUYER_ORDERS)
+                },
+                onSellClick = {
+                    navController.navigate(Routes.SELLER_CREATE)
+                },
+                onMyListingsClick = {
+                    navController.navigate(Routes.SELLER_DASHBOARD)
+                }
             )
         }
 
@@ -177,6 +207,7 @@ fun UniMarketApp(
             selectedListing?.let { listing ->
                 ListingDetailScreen(
                     listing = listing,
+                    currentUserId = currentUser?.id,
                     viewModel = buyerVM,
                     onBack = { navController.popBackStack() },
                     onCartOpen = { navController.navigate(Routes.BUYER_CART) }
@@ -187,6 +218,7 @@ fun UniMarketApp(
         composable(Routes.BUYER_CART) {
             CartScreen(
                 viewModel = buyerVM,
+                currentUserId = currentUser?.id,
                 onBack = { navController.popBackStack() },
                 onCheckout = { navController.navigate(Routes.BUYER_CONFIRMATION) }
             )
@@ -213,13 +245,19 @@ fun UniMarketApp(
         composable(Routes.SELLER_DASHBOARD) {
             SellerDashboardScreen(
                 viewModel = sellerVM,
-                onAddListing = { navController.navigate(Routes.SELLER_CREATE) },
+                onAddListing = {
+                    navController.navigate(Routes.SELLER_CREATE)
+                },
                 onEdit = { listing ->
                     editingListing = listing
                     navController.navigate(Routes.SELLER_EDIT)
                 },
-                onLogout = { logout() },
-                onProfileClick = { navController.navigate(Routes.PROFILE) }
+                onProfileClick = {
+                    navController.navigate(Routes.PROFILE)
+                },
+                onLogout = {
+                    logout()
+                }
             )
         }
 

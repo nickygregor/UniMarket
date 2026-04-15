@@ -73,13 +73,13 @@ interface UniMarketApi {
     ): Response<MessageResponse>
 
     // ORDERS / CHECKOUT
-    @POST("orders/checkout")
+    @POST("buyer/orders/checkout")
     suspend fun checkout(
         @Header("Authorization") token: String,
         @Body req: CheckoutRequest
     ): Response<Order>
 
-    @GET("orders")
+    @GET("buyer/orders")
     suspend fun getOrders(
         @Header("Authorization") token: String
     ): Response<List<Order>>
@@ -90,13 +90,13 @@ interface UniMarketApi {
         @Header("Authorization") token: String
     ): Response<List<User>>
 
-    @POST("admin/users/{id}/activate")
+    @PUT("admin/users/{id}/activate")
     suspend fun activateUser(
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): Response<MessageResponse>
 
-    @POST("admin/users/{id}/deactivate")
+    @PUT("admin/users/{id}/deactivate")
     suspend fun deactivateUser(
         @Header("Authorization") token: String,
         @Path("id") id: Int

@@ -9,11 +9,11 @@
 9        android:targetSdkVersion="34" />
 10
 11    <uses-permission android:name="android.permission.INTERNET" />
-11-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:5-67
-11-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:22-64
+11-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:4:5-67
+11-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:4:22-64
 12    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-12-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:6:5-79
-12-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:6:22-76
+12-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:5-79
+12-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:22-76
 13
 14    <permission
 14-->[androidx.core:core:1.12.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/ece09fcfb94256c2f6b3f9668bacff05/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
@@ -27,20 +27,20 @@
 18-->[androidx.core:core:1.12.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/ece09fcfb94256c2f6b3f9668bacff05/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
 19
 20    <application
-20-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:8:5-26:19
+20-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:7:5-25:19
 21        android:allowBackup="true"
-21-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:9:9-35
+21-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:8:9-35
 22        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
 22-->[androidx.core:core:1.12.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/ece09fcfb94256c2f6b3f9668bacff05/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 23        android:debuggable="true"
 24        android:extractNativeLibs="false"
 25        android:label="UniMarket"
-25-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:10:9-34
+25-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:9:9-34
 26        android:testOnly="true"
 27        android:theme="@style/Theme.UniMarket"
-27-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:11:9-47
+27-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:10:9-47
 28        android:usesCleartextTraffic="true" >
-28-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:12:9-44
+28-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:11:9-44
 29
 30        <!--
 31             usesCleartextTraffic=true allows HTTP to 10.0.2.2 (emulator localhost)
@@ -48,22 +48,22 @@
 33        -->
 34
 35        <activity
-35-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:17:9-25:20
+35-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:16:9-24:20
 36            android:name="com.unimarket.MainActivity"
-36-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:18:13-41
+36-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:17:13-41
 37            android:exported="true"
-37-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:19:13-36
+37-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:18:13-36
 38            android:windowSoftInputMode="adjustResize" >
-38-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:20:13-55
+38-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:19:13-55
 39            <intent-filter>
-39-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:13-24:29
+39-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:20:13-23:29
 40                <action android:name="android.intent.action.MAIN" />
-40-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:17-69
-40-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:25-66
+40-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:17-69
+40-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:25-66
 41
 42                <category android:name="android.intent.category.LAUNCHER" />
-42-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:23:17-77
-42-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:23:27-74
+42-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:17-77
+42-->/Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:27-74
 43            </intent-filter>
 44        </activity>
 45        <activity

@@ -1,9 +1,9 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-28:12
-INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-28:12
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-27:12
+INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:1-27:12
 MERGED from [androidx.navigation:navigation-common:2.7.7] /Users/neeveshahi/.gradle/caches/8.13/transforms/bae959dcdd43e6b206c224320b3b57b1/transformed/navigation-common-2.7.7/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-runtime:2.7.7] /Users/neeveshahi/.gradle/caches/8.13/transforms/d5baab77ae8ad606fc835abb448d244c/transformed/navigation-runtime-2.7.7/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.navigation:navigation-common-ktx:2.7.7] /Users/neeveshahi/.gradle/caches/8.13/transforms/67e105a14b143305c93e85273651a6c9/transformed/navigation-common-ktx-2.7.7/AndroidManifest.xml:2:1-7:12
@@ -92,7 +92,6 @@ MERGED from [androidx.print:print:1.0.0] /Users/neeveshahi/.gradle/caches/8.13/t
 MERGED from [androidx.exifinterface:exifinterface:1.3.6] /Users/neeveshahi/.gradle/caches/8.13/transforms/2831ae975ba1789312ae675edab8b5a6/transformed/exifinterface-1.3.6/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.interpolator:interpolator:1.0.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/2124713513d190c9989dc2b4b2a2c5ac/transformed/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
 	package
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:3:5-28
 		INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml
 	android:versionName
 		INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml
@@ -101,16 +100,16 @@ MERGED from [androidx.interpolator:interpolator:1.0.0] /Users/neeveshahi/.gradle
 	xmlns:android
 		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:2:11-69
 uses-permission#android.permission.INTERNET
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:5-67
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:4:5-67
 	android:name
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:22-64
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:4:22-64
 uses-permission#android.permission.ACCESS_NETWORK_STATE
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:6:5-79
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:5-79
 	android:name
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:6:22-76
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:5:22-76
 application
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:8:5-26:19
-INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:8:5-26:19
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:7:5-25:19
+INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:7:5-25:19
 MERGED from [com.google.android.material:material:1.11.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/45544158ef4c8c30835f0336c52c0ee0/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [com.google.android.material:material:1.11.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/45544158ef4c8c30835f0336c52c0ee0/transformed/material-1.11.0/AndroidManifest.xml:22:5-20
 MERGED from [androidx.constraintlayout:constraintlayout:2.0.1] /Users/neeveshahi/.gradle/caches/8.13/transforms/7c27ed9177f571c53ab7b93347b16f75/transformed/constraintlayout-2.0.1/AndroidManifest.xml:9:5-20
@@ -136,31 +135,31 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /Users/neeveshahi/.gradle/c
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /Users/neeveshahi/.gradle/caches/8.13/transforms/ece09fcfb94256c2f6b3f9668bacff05/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:label
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:10:9-34
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:9:9-34
 	android:allowBackup
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:9:9-35
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:8:9-35
 	android:theme
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:11:9-47
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:10:9-47
 	android:usesCleartextTraffic
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:12:9-44
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:11:9-44
 activity#com.unimarket.MainActivity
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:17:9-25:20
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:16:9-24:20
 	android:windowSoftInputMode
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:20:13-55
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:19:13-55
 	android:exported
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:19:13-36
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:18:13-36
 	android:name
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:18:13-41
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:17:13-41
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:13-24:29
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:20:13-23:29
 action#android.intent.action.MAIN
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:17-69
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:17-69
 	android:name
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:25-66
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:21:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:23:17-77
+ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:17-77
 	android:name
-		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:23:27-74
+		ADDED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml:22:27-74
 uses-sdk
 INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /Users/neeveshahi/Desktop/UniMarket/android/app/src/main/AndroidManifest.xml

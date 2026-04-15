@@ -3,9 +3,30 @@ package com.unimarket.presentation
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unimarket.data.local.TokenManager
-import com.unimarket.data.repository.*
-import com.unimarket.domain.model.*
-import kotlinx.coroutines.flow.*
+import com.unimarket.data.repository.AdminRepository
+import com.unimarket.data.repository.AuthRepository
+import com.unimarket.data.repository.CartRepository
+import com.unimarket.data.repository.ListingRepository
+import com.unimarket.data.repository.OrderRepository
+import com.unimarket.data.repository.Result
+import com.unimarket.domain.model.AddToCartRequest
+import com.unimarket.domain.model.AuthResponse
+import com.unimarket.domain.model.CheckoutRequest
+import com.unimarket.domain.model.CreateListingRequest
+import com.unimarket.domain.model.Listing
+import com.unimarket.domain.model.LoginRequest
+import com.unimarket.domain.model.Order
+import com.unimarket.domain.model.RegisterRequest
+import com.unimarket.domain.model.UpdateListingRequest
+import com.unimarket.domain.model.User
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed class UiState<out T> {
@@ -75,8 +96,8 @@ class BuyerViewModel(
     private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
     val listings: StateFlow<UiState<List<Listing>>> = _listings.asStateFlow()
 
-    private val _cart = MutableStateFlow<UiState<Cart>>(UiState.Idle)
-    val cart: StateFlow<UiState<Cart>> = _cart.asStateFlow()
+    private val _cart = MutableStateFlow<UiState<com.unimarket.domain.model.Cart>>(UiState.Idle)
+    val cart: StateFlow<UiState<com.unimarket.domain.model.Cart>> = _cart.asStateFlow()
 
     private val _orders = MutableStateFlow<UiState<List<Order>>>(UiState.Idle)
     val orders: StateFlow<UiState<List<Order>>> = _orders.asStateFlow()
@@ -123,16 +144,8 @@ class BuyerViewModel(
         }
     }
 
-    fun checkout() = viewModelScope.launch {
+    fun checkout(req: CheckoutRequest) = viewModelScope.launch {
         _checkoutResult.value = UiState.Loading
-
-        val req = CheckoutRequest(
-            cardNumber = "4242424242424242",
-            cardExpiry = "12/26",
-            cardCvv = "123",
-            cardHolder = "Test User"
-        )
-
         when (val r = orderRepo.checkout(req)) {
             is Result.Success -> {
                 _checkoutResult.value = UiState.Success(r.data)
@@ -217,13 +230,25 @@ class SellerViewModel(
         price: Double?,
         cat: String?
     ) = viewModelScope.launch {
-        val req = UpdateListingRequest(title, desc, price, cat)
+        _actionResult.value = UiState.Loading
+
+        val req = UpdateListingRequest(
+            title = title,
+            description = desc,
+            price = price,
+            category = cat
+        )
+
         when (val r = repo.update(id, req)) {
             is Result.Success -> {
                 _toast.emit("Listing updated")
                 loadMyListings()
+                _actionResult.value = UiState.Success(Unit)
             }
-            is Result.Error -> _toast.emit(r.message)
+            is Result.Error -> {
+                _toast.emit(r.message)
+                _actionResult.value = UiState.Error(r.message)
+            }
         }
     }
 

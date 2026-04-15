@@ -37,7 +37,11 @@ data class User(
     val phoneNumber: String,
     val userId: String,
     val role: String,
-    val isActive: Boolean
+    val isActive: Boolean,
+    val listingsPosted: Int = 0,
+    val activeListings: Int = 0,
+    val ordersPlaced: Int = 0,
+    val itemsBought: Int = 0
 )
 
 // LISTING
@@ -125,6 +129,7 @@ data class Order(
     val items: List<OrderItem>,
     val totalAmount: Double,
     val status: String,
+    val cardLastFour: String? = null,
     val createdAt: Long
 )
 

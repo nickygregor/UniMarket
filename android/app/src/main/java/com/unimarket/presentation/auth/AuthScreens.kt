@@ -23,14 +23,16 @@ import androidx.compose.ui.unit.sp
 import com.unimarket.presentation.AuthViewModel
 import com.unimarket.presentation.UiState
 
-val UniBlue = Color(0xFF7CB8FF)
-val UniNavy = Color(0xFF081420)
-val UniNavyLight = Color(0xFF132235)
-val UniSurface = Color(0xFF18283B)
-val UniSurfaceBorder = Color(0x33FFFFFF)
-val UniAccent = Color(0xFF20D6A7)
-val UniTextMuted = Color(0xFFB8C7D9)
-val UniError = Color(0xFFFF7A7A)
+val UniBlue = Color(0xFF60A5FA)
+val UniNavy = Color(0xFF0B1F33)
+val UniNavyLight = Color(0xFF12314C)
+val UniSurface = Color(0xFFFFFFFF)
+val UniSurfaceBorder = Color(0x140B1F33)
+val UniAccent = Color(0xFFF58025)
+val UniTextMuted = Color(0xFF64748B)
+val UniError = Color(0xFFDC2626)
+val UniPage = Color(0xFFF7F8FA)
+val UniTextPrimary = Color(0xFF132033)
 
 private fun isValidUtaEmail(email: String): Boolean {
     return email.trim().lowercase()
@@ -78,7 +80,7 @@ fun LoginScreen(
                 text = "Welcome back",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = UniTextPrimary
             )
 
             Text(
@@ -165,7 +167,7 @@ fun LoginScreen(
             ) {
                 Text(
                     text = "Don't have an account? Register",
-                    color = UniBlue,
+                    color = UniNavy,
                     fontSize = 14.sp
                 )
             }
@@ -219,7 +221,7 @@ fun RegisterScreen(
                 text = "Student sign up",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = UniTextPrimary
             )
 
             Text(
@@ -398,7 +400,7 @@ fun RegisterScreen(
             ) {
                 Text(
                     text = "Already have an account? Sign in",
-                    color = UniBlue,
+                    color = UniNavy,
                     fontSize = 14.sp
                 )
             }
@@ -418,9 +420,9 @@ private fun AuthScreenContainer(
         .background(
             Brush.verticalGradient(
                 listOf(
-                    UniNavy,
-                    Color(0xFF102033),
-                    UniNavyLight
+                    Color(0xFFE9F1F9),
+                    UniPage,
+                    Color(0xFFFFF4EA)
                 )
             )
         )
@@ -452,7 +454,7 @@ private fun AuthHeader(
     Icon(
         imageVector = Icons.Filled.Store,
         contentDescription = null,
-        tint = UniAccent,
+        tint = UniNavy,
         modifier = Modifier.size(70.dp)
     )
 
@@ -462,7 +464,7 @@ private fun AuthHeader(
         text = title,
         fontSize = 32.sp,
         fontWeight = FontWeight.Bold,
-        color = Color.White
+        color = UniNavy
     )
 
     Text(
@@ -481,7 +483,7 @@ private fun AuthCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        color = UniSurface.copy(alpha = 0.92f),
+        color = UniSurface,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
             color = UniSurfaceBorder
@@ -516,7 +518,7 @@ fun UniTextField(
         label = {
             Text(
                 text = label,
-                color = Color.White.copy(alpha = 0.72f)
+                color = UniTextMuted
             )
         },
         leadingIcon = {
@@ -536,7 +538,7 @@ fun UniTextField(
                             Icons.Filled.Visibility
                         },
                         contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.65f)
+                        tint = UniTextMuted
                     )
                 }
             }
@@ -551,14 +553,14 @@ fun UniTextField(
         modifier = modifier,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = UniAccent,
-            unfocusedBorderColor = Color.White.copy(alpha = 0.22f),
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
+            unfocusedBorderColor = Color(0xFFD7DFEA),
+            focusedTextColor = UniTextPrimary,
+            unfocusedTextColor = UniTextPrimary,
             cursorColor = UniAccent,
             focusedLabelColor = UniAccent,
-            unfocusedLabelColor = Color.White.copy(alpha = 0.72f),
-            focusedContainerColor = Color(0x221FFFFF),
-            unfocusedContainerColor = Color(0x141FFFFF)
+            unfocusedLabelColor = UniTextMuted,
+            focusedContainerColor = Color(0xFFFFFBF7),
+            unfocusedContainerColor = Color.White
         ),
         shape = RoundedCornerShape(14.dp)
     )

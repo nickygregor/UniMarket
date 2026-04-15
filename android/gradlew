@@ -1,4 +1,16 @@
 #!/bin/sh
-# Gradle start-up script for UN*X
-exec "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" "$@" 2>/dev/null || \
-  gradle "$@"
+
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+
+if [ -f "$CLASSPATH" ]; then
+    exec java -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+fi
+
+if command -v gradle >/dev/null 2>&1; then
+    exec gradle "$@"
+fi
+
+echo "ERROR: Gradle wrapper JAR is missing at $CLASSPATH and no system 'gradle' was found." >&2
+echo "Re-import the wrapper files or regenerate them from Android Studio/Gradle." >&2
+exit 1
