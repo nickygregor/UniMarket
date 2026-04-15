@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -206,99 +207,105 @@ fun BrowseScreen(
             )
         }
     ) { padding ->
-        Column(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(bottom = 24.dp)
         ) {
-            BrowseHeroCard(
-                itemCount = liveCount,
-                categoryCount = categoryCount,
-                onSellClick = onSellClick,
-                onMyListingsClick = onMyListingsClick
-            )
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = {
-                    searchQuery = it
-                    viewModel.loadListings(keyword = it.ifBlank { null })
-                },
-                placeholder = { Text("Search books, bikes, electronics...") },
-                leadingIcon = { Icon(Icons.Filled.Search, null, tint = UniNavy) },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = UniAccent,
-                    unfocusedBorderColor = Color(0xFFD8E0EB),
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedTextColor = Color(0xFF132033),
-                    unfocusedTextColor = Color(0xFF132033),
-                    cursorColor = UniAccent
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                BrowseHeroCard(
+                    itemCount = liveCount,
+                    categoryCount = categoryCount,
+                    onSellClick = onSellClick,
+                    onMyListingsClick = onMyListingsClick
                 )
-            )
-
-            BrowseSectionTitle(
-                title = "Browse by category",
-                subtitle = "Quick campus-friendly filters"
-            )
-
-            CategoryChips { cat ->
-                viewModel.loadListings(category = cat)
             }
 
-            BrowseSectionTitle(
-                title = "Fresh on campus",
-                subtitle = if (liveCount > 0) {
-                    "$liveCount active listings ready to explore"
-                } else {
-                    "No active listings yet"
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = {
+                        searchQuery = it
+                        viewModel.loadListings(keyword = it.ifBlank { null })
+                    },
+                    placeholder = { Text("Search books, bikes, electronics...") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = UniNavy) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = UniAccent,
+                        unfocusedBorderColor = Color(0xFFD8E0EB),
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedTextColor = Color(0xFF132033),
+                        unfocusedTextColor = Color(0xFF132033),
+                        cursorColor = UniAccent
+                    )
+                )
+            }
+
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                BrowseSectionTitle(
+                    title = "Browse by category",
+                    subtitle = "Quick campus-friendly filters"
+                )
+            }
+
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                CategoryChips { cat ->
+                    viewModel.loadListings(category = cat)
                 }
-            )
+            }
+
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                BrowseSectionTitle(
+                    title = "Fresh on campus",
+                    subtitle = if (liveCount > 0) {
+                        "$liveCount active listings ready to explore"
+                    } else {
+                        "No active listings yet"
+                    }
+                )
+            }
 
             when (val s = listingsState) {
-                is UiState.Loading -> Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = UniAccent)
+                is UiState.Loading -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = UniAccent)
+                        }
+                    }
                 }
 
-                is UiState.Error -> Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                ) {
-                    ErrorCard(s.msg) {
-                        viewModel.loadListings()
+                is UiState.Error -> {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        ErrorCard(s.msg) {
+                            viewModel.loadListings()
+                        }
                     }
                 }
 
                 is UiState.Success -> {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(2),
-                        contentPadding = PaddingValues(
-                            start = 12.dp,
-                            end = 12.dp,
-                            top = 6.dp,
-                            bottom = 20.dp
-                        ),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        items(s.data.size) { index ->
-                            val listing = s.data[index]
-                            val isOwnListing = currentUserId != null && listing.sellerId == currentUserId
+                    items(s.data.size) { index ->
+                        val listing = s.data[index]
+                        val isOwnListing = currentUserId != null && listing.sellerId == currentUserId
 
+                        val startPadding = if (index % 2 == 0) 16.dp else 0.dp
+                        val endPadding = if (index % 2 == 0) 0.dp else 16.dp
+
+                        Box(modifier = Modifier.padding(start = startPadding, end = endPadding)) {
                             ListingCard(
                                 listing = listing,
                                 isOwnListing = isOwnListing,
@@ -309,13 +316,7 @@ fun BrowseScreen(
                     }
                 }
 
-                else -> {
-                    Spacer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
+                else -> {}
             }
         }
     }
