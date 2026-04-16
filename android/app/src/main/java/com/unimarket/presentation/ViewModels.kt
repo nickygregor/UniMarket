@@ -228,7 +228,8 @@ class SellerViewModel(
         title: String?,
         desc: String?,
         price: Double?,
-        cat: String?
+        cat: String?,
+        img: String?
     ) = viewModelScope.launch {
         _actionResult.value = UiState.Loading
 
@@ -236,7 +237,8 @@ class SellerViewModel(
             title = title,
             description = desc,
             price = price,
-            category = cat
+            category = cat,
+            imageUrl = img
         )
 
         when (val r = repo.update(id, req)) {

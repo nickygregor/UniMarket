@@ -22,7 +22,9 @@
         android:appComponentFactory="androidx.core.app.CoreComponentFactory"
         android:debuggable="true"
         android:extractNativeLibs="false"
+        android:icon="@drawable/unimarket_logo"
         android:label="UniMarket"
+        android:roundIcon="@drawable/unimarket_logo"
         android:testOnly="true"
         android:theme="@style/Theme.UniMarket"
         android:usesCleartextTraffic="true" >

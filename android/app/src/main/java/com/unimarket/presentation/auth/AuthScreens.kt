@@ -16,10 +16,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unimarket.R
 import com.unimarket.presentation.AuthViewModel
 import com.unimarket.presentation.UiState
 
@@ -452,10 +454,10 @@ private fun AuthHeader(
     subtitle: String
 ) {
     Icon(
-        imageVector = Icons.Filled.Store,
+        painter = painterResource(id = R.drawable.unimarket_logo),
         contentDescription = null,
-        tint = UniNavy,
-        modifier = Modifier.size(70.dp)
+        tint = Color.Unspecified,
+        modifier = Modifier.size(86.dp)
     )
 
     Spacer(Modifier.height(14.dp))

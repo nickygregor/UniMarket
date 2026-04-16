@@ -2,6 +2,9 @@
 
 package com.unimarket.presentation.buyer
 
+import android.graphics.BitmapFactory
+import android.util.Base64
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,7 +73,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -80,6 +85,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.unimarket.R
 import com.unimarket.domain.model.Cart
 import com.unimarket.domain.model.CartItem
 import com.unimarket.domain.model.CheckoutRequest
@@ -138,6 +144,44 @@ private fun orderItemCount(order: Order): Int {
 }
 
 @Composable
+private fun ListingImage(
+    imageUrl: String?,
+    fallbackUrl: String,
+    contentDescription: String?,
+    contentScale: ContentScale,
+    modifier: Modifier = Modifier
+) {
+    val decodedBitmap = remember(imageUrl) {
+        val raw = imageUrl?.trim().orEmpty()
+        if (!raw.startsWith("data:image/", ignoreCase = true)) {
+            null
+        } else {
+            val payload = raw.substringAfter("base64,", missingDelimiterValue = "")
+            runCatching {
+                val bytes = Base64.decode(payload, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+    }
+
+    if (decodedBitmap != null) {
+        Image(
+            bitmap = decodedBitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier
+        )
+    } else {
+        AsyncImage(
+            model = imageUrl ?: fallbackUrl,
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier
+        )
+    }
+}
+
+@Composable
 fun BrowseScreen(
     viewModel: BuyerViewModel,
     currentUserId: Int?,
@@ -169,13 +213,17 @@ fun BrowseScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("UniMarket", fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                        Text(
-                            "UTA marketplace for campus deals",
-                            fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.8f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.unimarket_logo),
+                            contentDescription = null,
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(28.dp)
                         )
+                        Text("UniMarket", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -207,6 +255,7 @@ fun BrowseScreen(
             )
         }
     ) { padding ->
+<<<<<<< HEAD
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier
@@ -294,9 +343,46 @@ fun BrowseScreen(
                         ErrorCard(s.msg) {
                             viewModel.loadListings()
                         }
-                    }
-                }
+=======
+        when (val s = listingsState) {
+            is UiState.Loading -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = UniAccent)
+            }
 
+            is UiState.Error -> Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                ErrorCard(s.msg) {
+                    viewModel.loadListings()
+                }
+            }
+
+            is UiState.Success -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp)
+                ) {
+                    item {
+                        BrowseHeroCard(
+                            itemCount = liveCount,
+                            categoryCount = categoryCount,
+                            onSellClick = onSellClick,
+                            onMyListingsClick = onMyListingsClick
+                        )
+>>>>>>> 93553f0 (Add listing image support and app logo updates)
+                    }
+
+<<<<<<< HEAD
                 is UiState.Success -> {
                     items(s.data.size) { index ->
                         val listing = s.data[index]
@@ -311,12 +397,114 @@ fun BrowseScreen(
                                 isOwnListing = isOwnListing,
                                 onClick = { onViewListing(listing) },
                                 onAddCart = { viewModel.addToCart(listing.id) }
+=======
+                    item {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = {
+                                searchQuery = it
+                                viewModel.loadListings(keyword = it.ifBlank { null })
+                            },
+                            placeholder = { Text("Search books, bikes, electronics...") },
+                            leadingIcon = { Icon(Icons.Filled.Search, null, tint = UniNavy) },
+                            singleLine = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            shape = RoundedCornerShape(18.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = UniAccent,
+                                unfocusedBorderColor = Color(0xFFD8E0EB),
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedTextColor = Color(0xFF132033),
+                                unfocusedTextColor = Color(0xFF132033),
+                                cursorColor = UniAccent
+>>>>>>> 93553f0 (Add listing image support and app logo updates)
                             )
+                        )
+                    }
+
+                    item {
+                        BrowseSectionTitle(
+                            title = "Browse by category",
+                            subtitle = "Quick campus-friendly filters"
+                        )
+                    }
+
+                    item {
+                        CategoryChips { cat ->
+                            viewModel.loadListings(category = cat)
                         }
+                    }
+
+                    item {
+                        BrowseSectionTitle(
+                            title = "Fresh on campus",
+                            subtitle = if (liveCount > 0) {
+                                "$liveCount active listings ready to explore"
+                            } else {
+                                "No active listings yet"
+                            }
+                        )
+                    }
+
+                    item {
+                        ListingsGridSection(
+                            listings = s.data,
+                            currentUserId = currentUserId,
+                            onViewListing = onViewListing,
+                            onAddCart = { listingId -> viewModel.addToCart(listingId) }
+                        )
+                    }
+                }
+            }
+
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun ListingsGridSection(
+    listings: List<Listing>,
+    currentUserId: Int?,
+    onViewListing: (Listing) -> Unit,
+    onAddCart: (Int) -> Unit
+) {
+    val rows = listings.chunked(2)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        rows.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowItems.forEach { listing ->
+                    val isOwnListing = currentUserId != null && listing.sellerId == currentUserId
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        ListingCard(
+                            listing = listing,
+                            isOwnListing = isOwnListing,
+                            onClick = { onViewListing(listing) },
+                            onAddCart = { onAddCart(listing.id) }
+                        )
                     }
                 }
 
+<<<<<<< HEAD
                 else -> {}
+=======
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+>>>>>>> 93553f0 (Add listing image support and app logo updates)
             }
         }
     }
@@ -505,8 +693,9 @@ fun ListingCard(
     ) {
         Column {
             Box {
-                AsyncImage(
-                    model = listing.imageUrl ?: "https://placehold.co/300x200/png",
+                ListingImage(
+                    imageUrl = listing.imageUrl,
+                    fallbackUrl = "https://placehold.co/300x200/png",
                     contentDescription = listing.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -730,8 +919,9 @@ fun ListingDetailScreen(
                 .padding(padding)
         ) {
             item {
-                AsyncImage(
-                    model = listing.imageUrl ?: "https://placehold.co/800x500/png",
+                ListingImage(
+                    imageUrl = listing.imageUrl,
+                    fallbackUrl = "https://placehold.co/800x500/png",
                     contentDescription = listing.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -1189,8 +1379,9 @@ fun CartItemRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            AsyncImage(
-                model = item.listing.imageUrl ?: "https://placehold.co/80x80/png",
+            ListingImage(
+                imageUrl = item.listing.imageUrl,
+                fallbackUrl = "https://placehold.co/80x80/png",
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier

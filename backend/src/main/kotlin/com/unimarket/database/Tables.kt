@@ -23,7 +23,7 @@ object Listings : IntIdTable("listings") {
     val category      = varchar("category",    100)
     val condition     = varchar("condition",    50).default("Good")  // New | Like New | Good | Fair | Poor
     val sellerContact = varchar("seller_contact", 255)               // phone or email
-    val imageUrl      = varchar("image_url",   500).nullable()
+    val imageUrl      = text("image_url").nullable()
     val isActive      = bool("is_active").default(true)
     val expiresAt     = long("expires_at")                           // epoch ms
     val createdAt     = long("created_at")

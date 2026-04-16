@@ -1,5 +1,12 @@
 package com.unimarket.presentation.seller
 
+import android.content.Context
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +75,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -84,6 +93,8 @@ import com.unimarket.presentation.auth.UniNavy
 import com.unimarket.presentation.buyer.EmptyState
 import com.unimarket.presentation.buyer.ErrorCard
 import com.unimarket.presentation.buyer.fmt
+import java.io.ByteArrayOutputStream
+import kotlin.math.max
 
 private val FormTextColor = Color(0xFF132033)
 private val FormMutedText = Color(0xFF6B7280)
@@ -239,8 +250,9 @@ fun SellerListingCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            AsyncImage(
-                model = listing.imageUrl ?: "https://placehold.co/100x100/png",
+            SellerListingImage(
+                imageUrl = listing.imageUrl,
+                fallbackUrl = "https://placehold.co/100x100/png",
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -305,17 +317,101 @@ fun SellerListingCard(
 }
 
 private fun isValidImageUrl(url: String): Boolean {
-    val trimmed = url.trim().lowercase()
-    return (trimmed.startsWith("http://") || trimmed.startsWith("https://")) &&
-            (
-                    trimmed.endsWith(".jpg") ||
-                            trimmed.endsWith(".jpeg") ||
-                            trimmed.endsWith(".png") ||
-                            trimmed.endsWith(".webp") ||
-                            trimmed.contains("placehold.co") ||
-                            trimmed.contains("imgur") ||
-                            trimmed.contains("cloudinary")
-                    )
+    val trimmed = url.trim()
+    val lower = trimmed.lowercase()
+    return lower.startsWith("data:image/") ||
+            lower.startsWith("http://") ||
+            lower.startsWith("https://")
+}
+
+@Composable
+private fun SellerListingImage(
+    imageUrl: String?,
+    fallbackUrl: String,
+    contentDescription: String?,
+    contentScale: ContentScale,
+    modifier: Modifier = Modifier
+) {
+    val decodedBitmap = remember(imageUrl) {
+        val raw = imageUrl?.trim().orEmpty()
+        if (!raw.startsWith("data:image/", ignoreCase = true)) {
+            null
+        } else {
+            val payload = raw.substringAfter("base64,", missingDelimiterValue = "")
+            runCatching {
+                val bytes = Base64.decode(payload, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+    }
+
+    if (decodedBitmap != null) {
+        Image(
+            bitmap = decodedBitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier
+        )
+    } else {
+        AsyncImage(
+            model = imageUrl ?: fallbackUrl,
+            contentDescription = contentDescription,
+            contentScale = contentScale,
+            modifier = modifier
+        )
+    }
+}
+
+private fun uriToInlineImageData(context: Context, uri: Uri): String? {
+    return runCatching {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, bounds)
+        }
+
+        val largestSide = max(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+        val targetSide = 640
+        var sampleSize = 1
+        while (largestSide / sampleSize > targetSide) {
+            sampleSize *= 2
+        }
+
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+        }
+
+        val originalBitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input, null, decodeOptions)
+        } ?: return null
+
+        val maxSide = max(originalBitmap.width, originalBitmap.height).coerceAtLeast(1)
+        val scale = if (maxSide > targetSide) targetSide.toFloat() / maxSide else 1f
+        val targetWidth = (originalBitmap.width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (originalBitmap.height * scale).toInt().coerceAtLeast(1)
+
+        val scaledBitmap = if (scale < 1f) {
+            android.graphics.Bitmap.createScaledBitmap(originalBitmap, targetWidth, targetHeight, true)
+        } else {
+            originalBitmap
+        }
+
+        val out = ByteArrayOutputStream()
+        var quality = 55
+        scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+        while (out.size() > 180_000 && quality > 28) {
+            out.reset()
+            quality -= 7
+            scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
+        }
+
+        if (scaledBitmap !== originalBitmap) {
+            scaledBitmap.recycle()
+        }
+        originalBitmap.recycle()
+
+        val encoded = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        "data:image/jpeg;base64,$encoded"
+    }.getOrNull()
 }
 
 @Composable
@@ -410,6 +506,7 @@ fun CreateEditListingScreen(
 ) {
     val actionResult by viewModel.actionResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
+    val context = LocalContext.current
 
     var title by remember { mutableStateOf(existingListing?.title ?: "") }
     var description by remember { mutableStateOf(existingListing?.description ?: "") }
@@ -417,6 +514,20 @@ fun CreateEditListingScreen(
     var category by remember { mutableStateOf(existingListing?.category ?: "Books") }
     var imageUrl by remember { mutableStateOf(existingListing?.imageUrl ?: "") }
     var localError by remember { mutableStateOf<String?>(null) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            val inlineImage = uriToInlineImageData(context, uri)
+            if (inlineImage != null) {
+                imageUrl = inlineImage
+                localError = null
+            } else {
+                localError = "Couldn't read that image. Please try another photo."
+            }
+        }
+    }
 
     val isEditing = existingListing != null
     val categories = listOf("Books", "Electronics", "Furniture", "Clothing", "Food", "Other")
@@ -599,7 +710,7 @@ fun CreateEditListingScreen(
             item {
                 FilledTonalButton(
                     onClick = {
-                        imageUrl = "https://placehold.co/600x400/png"
+                        imagePickerLauncher.launch("image/*")
                         localError = null
                     },
                     colors = ButtonDefaults.filledTonalButtonColors(
@@ -611,7 +722,7 @@ fun CreateEditListingScreen(
                 ) {
                     Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Use Sample Image URL")
+                    Text("Choose Image From Device")
                 }
             }
 
@@ -622,7 +733,7 @@ fun CreateEditListingScreen(
                         imageUrl = it
                         localError = null
                     },
-                    label = { Text("Paste Image URL *") },
+                    label = { Text("Paste Image URL (Optional if photo chosen)") },
                     leadingIcon = {
                         Icon(Icons.Filled.Image, contentDescription = null, tint = UniAccent)
                     },
@@ -645,7 +756,7 @@ fun CreateEditListingScreen(
 
             item {
                 Text(
-                    text = "Paste a direct image link starting with http/https, or use the sample button above.",
+                    text = "Choose an image from Photos or Files on the device, or paste a direct image link. The chosen image will be previewed below.",
                     fontSize = 12.sp,
                     color = FormMutedText
                 )
@@ -653,8 +764,22 @@ fun CreateEditListingScreen(
 
             item {
                 if (imageUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = imageUrl,
+                    TextButton(
+                        onClick = {
+                            imageUrl = ""
+                            localError = null
+                        }
+                    ) {
+                        Text("Remove Selected Image", color = Color.Red)
+                    }
+                }
+            }
+
+            item {
+                if (imageUrl.isNotBlank()) {
+                    SellerListingImage(
+                        imageUrl = imageUrl,
+                        fallbackUrl = "https://placehold.co/600x400/png",
                         contentDescription = "Preview",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -715,7 +840,8 @@ fun CreateEditListingScreen(
                                         trimmedTitle,
                                         trimmedDescription,
                                         parsedPrice,
-                                        category
+                                        category,
+                                        trimmedImageUrl
                                     )
                                 } else {
                                     viewModel.createListing(

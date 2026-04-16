@@ -6,5 +6,11 @@ color navy
 color surface
 color teal
 color white
+drawable ic_launcher_background
+drawable ic_launcher_foreground
+drawable ic_unimarket_logo
+drawable unimarket_logo
+mipmap ic_launcher
+mipmap ic_launcher_round
 string app_name
 style Theme.UniMarket

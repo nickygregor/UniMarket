@@ -2934,6 +2934,8 @@ drawable ic_call_decline_low
 drawable ic_clear_black_24
 drawable ic_clock_black_24dp
 drawable ic_keyboard_black_24dp
+drawable ic_launcher_background
+drawable ic_launcher_foreground
 drawable ic_m3_chip_check
 drawable ic_m3_chip_checked_circle
 drawable ic_m3_chip_close
@@ -2942,6 +2944,7 @@ drawable ic_mtrl_chip_checked_black
 drawable ic_mtrl_chip_checked_circle
 drawable ic_mtrl_chip_close_circle
 drawable ic_search_black_24
+drawable ic_unimarket_logo
 drawable m3_avd_hide_password
 drawable m3_avd_show_password
 drawable m3_bottom_sheet_drag_handle
@@ -3017,6 +3020,7 @@ drawable notify_panel_notification_icon_bg
 drawable test_level_drawable
 drawable tooltip_frame_dark
 drawable tooltip_frame_light
+drawable unimarket_logo
 id ALT
 id BOTTOM_END
 id BOTTOM_START
@@ -3669,6 +3673,8 @@ layout select_dialog_item_material
 layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
+mipmap ic_launcher
+mipmap ic_launcher_round
 plurals mtrl_badge_content_description
 string abc_action_bar_home_description
 string abc_action_bar_up_description
