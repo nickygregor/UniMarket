@@ -454,7 +454,7 @@ private fun AuthHeader(
     subtitle: String
 ) {
     Icon(
-        painter = painterResource(id = R.drawable.unimarket_logo),
+        painter = painterResource(id = R.drawable.unimarket_logo_mark),
         contentDescription = null,
         tint = Color.Unspecified,
         modifier = Modifier.size(86.dp)

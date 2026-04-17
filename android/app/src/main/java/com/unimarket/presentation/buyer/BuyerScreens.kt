@@ -102,6 +102,18 @@ import java.util.Locale
 
 val fmt: NumberFormat = NumberFormat.getCurrencyInstance(Locale.US)
 
+private fun listingImageUrls(value: String?): List<String> {
+    return value
+        ?.lines()
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+}
+
+private fun firstListingImageUrl(value: String?): String? {
+    return listingImageUrls(value).firstOrNull()
+}
+
 private fun detectCardType(number: String): String {
     val digits = number.replace(" ", "")
     return when {
@@ -218,7 +230,7 @@ fun BrowseScreen(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            painter = painterResource(id = R.drawable.unimarket_logo),
+                            painter = painterResource(id = R.drawable.unimarket_logo_mark),
                             contentDescription = null,
                             tint = Color.Unspecified,
                             modifier = Modifier.size(28.dp)
@@ -583,7 +595,7 @@ fun ListingCard(
         Column {
             Box {
                 ListingImage(
-                    imageUrl = listing.imageUrl,
+                    imageUrl = firstListingImageUrl(listing.imageUrl),
                     fallbackUrl = "https://placehold.co/300x200/png",
                     contentDescription = listing.title,
                     contentScale = ContentScale.Crop,
@@ -713,6 +725,40 @@ fun CategoryChips(onSelect: (String?) -> Unit) {
 }
 
 @Composable
+private fun ListingImageGallery(listing: Listing) {
+    val images = listingImageUrls(listing.imageUrl)
+
+    if (images.size <= 1) {
+        ListingImage(
+            imageUrl = images.firstOrNull(),
+            fallbackUrl = "https://placehold.co/800x500/png",
+            contentDescription = listing.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+        )
+    } else {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+        ) {
+            items(images) { image ->
+                ListingImage(
+                    imageUrl = image,
+                    fallbackUrl = "https://placehold.co/800x500/png",
+                    contentDescription = listing.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(width = 300.dp, height = 230.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ListingDetailScreen(
     listing: Listing,
     currentUserId: Int?,
@@ -808,15 +854,7 @@ fun ListingDetailScreen(
                 .padding(padding)
         ) {
             item {
-                ListingImage(
-                    imageUrl = listing.imageUrl,
-                    fallbackUrl = "https://placehold.co/800x500/png",
-                    contentDescription = listing.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                )
+                ListingImageGallery(listing = listing)
             }
 
             item {
@@ -1269,7 +1307,7 @@ fun CartItemRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             ListingImage(
-                imageUrl = item.listing.imageUrl,
+                imageUrl = firstListingImageUrl(item.listing.imageUrl),
                 fallbackUrl = "https://placehold.co/80x80/png",
                 contentDescription = null,
                 contentScale = ContentScale.Crop,

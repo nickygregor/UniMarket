@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -70,6 +71,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,12 +95,16 @@ import com.unimarket.presentation.auth.UniNavy
 import com.unimarket.presentation.buyer.EmptyState
 import com.unimarket.presentation.buyer.ErrorCard
 import com.unimarket.presentation.buyer.fmt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import kotlin.math.max
 
 private val FormTextColor = Color(0xFF132033)
 private val FormMutedText = Color(0xFF6B7280)
 private val FormBgColor = Color(0xFFF5F7FA)
+private const val MaxListingImages = 4
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -251,7 +257,7 @@ fun SellerListingCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             SellerListingImage(
-                imageUrl = listing.imageUrl,
+                imageUrl = firstListingImageUrl(listing.imageUrl),
                 fallbackUrl = "https://placehold.co/100x100/png",
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
@@ -317,11 +323,25 @@ fun SellerListingCard(
 }
 
 private fun isValidImageUrl(url: String): Boolean {
-    val trimmed = url.trim()
-    val lower = trimmed.lowercase()
-    return lower.startsWith("data:image/") ||
-            lower.startsWith("http://") ||
-            lower.startsWith("https://")
+    val images = listingImageUrls(url)
+    return images.isNotEmpty() && images.all { image ->
+        val lower = image.lowercase()
+        lower.startsWith("data:image/") ||
+                lower.startsWith("http://") ||
+                lower.startsWith("https://")
+    }
+}
+
+private fun listingImageUrls(value: String?): List<String> {
+    return value
+        ?.lines()
+        ?.map { it.trim() }
+        ?.filter { it.isNotBlank() }
+        .orEmpty()
+}
+
+private fun firstListingImageUrl(value: String?): String? {
+    return listingImageUrls(value).firstOrNull()
 }
 
 @Composable
@@ -370,7 +390,7 @@ private fun uriToInlineImageData(context: Context, uri: Uri): String? {
         }
 
         val largestSide = max(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
-        val targetSide = 640
+        val targetSide = 480
         var sampleSize = 1
         while (largestSide / sampleSize > targetSide) {
             sampleSize *= 2
@@ -396,11 +416,11 @@ private fun uriToInlineImageData(context: Context, uri: Uri): String? {
         }
 
         val out = ByteArrayOutputStream()
-        var quality = 55
+        var quality = 50
         scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
-        while (out.size() > 180_000 && quality > 28) {
+        while (out.size() > 95_000 && quality > 24) {
             out.reset()
-            quality -= 7
+            quality -= 6
             scaledBitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, quality, out)
         }
 
@@ -507,6 +527,7 @@ fun CreateEditListingScreen(
     val actionResult by viewModel.actionResult.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     var title by remember { mutableStateOf(existingListing?.title ?: "") }
     var description by remember { mutableStateOf(existingListing?.description ?: "") }
@@ -514,17 +535,41 @@ fun CreateEditListingScreen(
     var category by remember { mutableStateOf(existingListing?.category ?: "Books") }
     var imageUrl by remember { mutableStateOf(existingListing?.imageUrl ?: "") }
     var localError by remember { mutableStateOf<String?>(null) }
+    var isImageProcessing by remember { mutableStateOf(false) }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        if (uri != null) {
-            val inlineImage = uriToInlineImageData(context, uri)
-            if (inlineImage != null) {
-                imageUrl = inlineImage
-                localError = null
-            } else {
-                localError = "Couldn't read that image. Please try another photo."
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            isImageProcessing = true
+            localError = null
+
+            scope.launch {
+                val currentImages = listingImageUrls(imageUrl)
+                val openSlots = (MaxListingImages - currentImages.size).coerceAtLeast(0)
+
+                if (openSlots == 0) {
+                    localError = "You can add up to $MaxListingImages photos per listing."
+                    isImageProcessing = false
+                    return@launch
+                }
+
+                val newImages = withContext(Dispatchers.IO) {
+                    uris.take(openSlots).mapNotNull { uri ->
+                        uriToInlineImageData(context, uri)
+                    }
+                }
+
+                if (newImages.isNotEmpty()) {
+                    imageUrl = (currentImages + newImages)
+                        .take(MaxListingImages)
+                        .joinToString("\n")
+                    localError = null
+                } else {
+                    localError = "Couldn't read those images. Please try different photos."
+                }
+
+                isImageProcessing = false
             }
         }
     }
@@ -700,7 +745,7 @@ fun CreateEditListingScreen(
 
             item {
                 Text(
-                    text = "Add Image",
+                    text = "Add Images",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
                     color = FormTextColor
@@ -708,11 +753,14 @@ fun CreateEditListingScreen(
             }
 
             item {
+                val selectedImageCount = listingImageUrls(imageUrl).size
+
                 FilledTonalButton(
                     onClick = {
                         imagePickerLauncher.launch("image/*")
                         localError = null
                     },
+                    enabled = !isImageProcessing,
                     colors = ButtonDefaults.filledTonalButtonColors(
                         containerColor = UniAccent.copy(alpha = 0.15f),
                         contentColor = UniAccent
@@ -720,23 +768,47 @@ fun CreateEditListingScreen(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
+                    if (isImageProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = UniAccent
+                        )
+                    } else {
+                        Icon(Icons.Filled.AddPhotoAlternate, contentDescription = null)
+                    }
                     Spacer(Modifier.width(8.dp))
-                    Text("Choose Image From Device")
+                    Text(
+                        if (isImageProcessing) {
+                            "Preparing Images..."
+                        } else {
+                            "Choose Images From Device ($selectedImageCount/$MaxListingImages)"
+                        }
+                    )
                 }
             }
 
             item {
+                val selectedImages = listingImageUrls(imageUrl)
+                val hasDeviceImage = selectedImages.any { it.startsWith("data:image/", ignoreCase = true) }
+
                 OutlinedTextField(
-                    value = imageUrl,
+                    value = if (hasDeviceImage) {
+                        "${selectedImages.size} photo${if (selectedImages.size == 1) "" else "s"} selected from device"
+                    } else {
+                        imageUrl
+                    },
                     onValueChange = {
-                        imageUrl = it
-                        localError = null
+                        if (!hasDeviceImage) {
+                            imageUrl = it
+                            localError = null
+                        }
                     },
                     label = { Text("Paste Image URL (Optional if photo chosen)") },
                     leadingIcon = {
                         Icon(Icons.Filled.Image, contentDescription = null, tint = UniAccent)
                     },
+                    enabled = !hasDeviceImage,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -756,7 +828,7 @@ fun CreateEditListingScreen(
 
             item {
                 Text(
-                    text = "Choose an image from Photos or Files on the device, or paste a direct image link. The chosen image will be previewed below.",
+                    text = "Choose up to $MaxListingImages images from Photos or Files on the device, or paste one direct image link. The first image is used on listing cards.",
                     fontSize = 12.sp,
                     color = FormMutedText
                 )
@@ -770,23 +842,31 @@ fun CreateEditListingScreen(
                             localError = null
                         }
                     ) {
-                        Text("Remove Selected Image", color = Color.Red)
+                        Text("Remove Selected Images", color = Color.Red)
                     }
                 }
             }
 
             item {
-                if (imageUrl.isNotBlank()) {
-                    SellerListingImage(
-                        imageUrl = imageUrl,
-                        fallbackUrl = "https://placehold.co/600x400/png",
-                        contentDescription = "Preview",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                    )
+                val selectedImages = listingImageUrls(imageUrl)
+
+                if (selectedImages.isNotEmpty()) {
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(end = 8.dp)
+                    ) {
+                        items(selectedImages) { selectedImage ->
+                            SellerListingImage(
+                                imageUrl = selectedImage,
+                                fallbackUrl = "https://placehold.co/600x400/png",
+                                contentDescription = "Preview",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(width = 180.dp, height = 140.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                            )
+                        }
+                    }
                 }
             }
 
