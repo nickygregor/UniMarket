@@ -30,6 +30,16 @@ object OrderService {
             throw IllegalArgumentException("Invalid CVV")
         }
 
+        val fulfillmentMethod = req.fulfillmentMethod.uppercase()
+        if (fulfillmentMethod !in setOf("PICKUP", "DELIVERY")) {
+            throw IllegalArgumentException("Choose pickup or delivery")
+        }
+
+        val fulfillmentLocation = req.fulfillmentLocation.trim()
+        if (fulfillmentLocation.isBlank()) {
+            throw IllegalArgumentException("Pickup or delivery location is required")
+        }
+
         val cart = CartService.getCart(buyerId)
         if (cart.items.isEmpty()) {
             throw IllegalStateException("Cart is empty")
@@ -51,6 +61,8 @@ object OrderService {
                 it[Orders.totalAmount] = cart.totalAmount
                 it[Orders.status] = "CONFIRMED"
                 it[Orders.cardLastFour] = lastFour
+                it[Orders.fulfillmentMethod] = fulfillmentMethod
+                it[Orders.fulfillmentLocation] = fulfillmentLocation
                 it[Orders.createdAt] = System.currentTimeMillis()
             }.value
 
@@ -102,6 +114,8 @@ object OrderService {
             totalAmount = orderRow[Orders.totalAmount],
             status = orderRow[Orders.status],
             cardLastFour = orderRow[Orders.cardLastFour],
+            fulfillmentMethod = orderRow[Orders.fulfillmentMethod],
+            fulfillmentLocation = orderRow[Orders.fulfillmentLocation],
             createdAt = orderRow[Orders.createdAt]
         )
     }
@@ -135,6 +149,8 @@ object OrderService {
                     totalAmount = orderRow[Orders.totalAmount],
                     status = orderRow[Orders.status],
                     cardLastFour = orderRow[Orders.cardLastFour],
+                    fulfillmentMethod = orderRow[Orders.fulfillmentMethod],
+                    fulfillmentLocation = orderRow[Orders.fulfillmentLocation],
                     createdAt = orderRow[Orders.createdAt]
                 )
             }

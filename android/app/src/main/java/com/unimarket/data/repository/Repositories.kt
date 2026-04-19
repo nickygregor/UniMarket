@@ -24,6 +24,11 @@ class AuthRepository(
     suspend fun login(req: LoginRequest): Result<AuthResponse> =
         safeCall { api.login(req) }
 
+    suspend fun changePassword(req: ChangePasswordRequest): Result<MessageResponse> {
+        val token = bearerToken() ?: return Result.Error("Not authenticated")
+        return safeCall { api.changePassword(token, req) }
+    }
+
     suspend fun logout() = tokenManager.clearSession()
 
     suspend fun cachedUser(): User? = tokenManager.user.first()
@@ -150,6 +155,11 @@ class AdminRepository(
         return safeCall { api.getAllUsers(t) }
     }
 
+    suspend fun getMarketplaceListings(): Result<List<Listing>> {
+        token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.getListings() }
+    }
+
     suspend fun activateUser(id: Int): Result<MessageResponse> {
         val t = token() ?: return Result.Error("Not authenticated")
         return safeCall { api.activateUser(t, id) }
@@ -166,6 +176,52 @@ class AdminRepository(
     }
 }
 
+// INTERACTIONS
+
+class InteractionRepository(
+    private val api: UniMarketApi,
+    private val tokenMgr: TokenManager
+) {
+    private suspend fun token() = tokenMgr.token.first()?.let { "Bearer $it" }
+
+    suspend fun getListingComments(listingId: Int): Result<List<ListingComment>> =
+        safeCall { api.getListingComments(listingId) }
+
+    suspend fun addListingComment(
+        listingId: Int,
+        message: String,
+        parentCommentId: Int? = null
+    ): Result<ListingComment> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.addListingComment(t, listingId, CreateCommentRequest(message, parentCommentId)) }
+    }
+
+    suspend fun getSellerComments(): Result<List<ListingComment>> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.getSellerComments(t) }
+    }
+
+    suspend fun getSellerNotifications(): Result<SellerNotificationSummary> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.getSellerNotifications(t) }
+    }
+
+    suspend fun getConversations(): Result<List<Conversation>> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.getConversations(t) }
+    }
+
+    suspend fun getMessageThread(listingId: Int, otherUserId: Int): Result<List<ChatMessage>> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.getMessageThread(t, listingId, otherUserId) }
+    }
+
+    suspend fun sendMessage(listingId: Int, otherUserId: Int, message: String): Result<ChatMessage> {
+        val t = token() ?: return Result.Error("Not authenticated")
+        return safeCall { api.sendMessage(t, listingId, otherUserId, SendMessageRequest(message)) }
+    }
+}
+
 // HELPERS
 
 private suspend fun <T> safeCall(call: suspend () -> retrofit2.Response<T>): Result<T> =
@@ -178,7 +234,35 @@ private suspend fun <T> safeCall(call: suspend () -> retrofit2.Response<T>): Res
     }
 
 private fun Listing.toEntity() =
-    ListingEntity(id, sellerId, sellerName, title, description, price, category, imageUrl, isActive, createdAt)
+    ListingEntity(
+        id,
+        sellerId,
+        sellerName,
+        title,
+        description,
+        price,
+        category,
+        condition,
+        sellerContact,
+        imageUrl,
+        isActive,
+        expiresAt,
+        createdAt
+    )
 
 private fun ListingEntity.toListing() =
-    Listing(id, sellerId, sellerName, title, description, price, category, imageUrl, isActive, createdAt)
+    Listing(
+        id,
+        sellerId,
+        sellerName,
+        title,
+        description,
+        price,
+        category,
+        condition,
+        sellerContact,
+        imageUrl,
+        isActive,
+        expiresAt,
+        createdAt
+    )

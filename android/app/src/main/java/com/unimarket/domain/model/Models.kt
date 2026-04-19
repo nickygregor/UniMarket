@@ -21,6 +21,12 @@ data class LoginRequest(
 )
 
 @Serializable
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String
+)
+
+@Serializable
 data class AuthResponse(
     val token: String,
     val user: User
@@ -55,8 +61,11 @@ data class Listing(
     val description: String,
     val price: Double,
     val category: String,
+    val condition: String = "Good",
+    val sellerContact: String = "",
     val imageUrl: String?,
     val isActive: Boolean,
+    val expiresAt: Long = 0L,
     val createdAt: Long
 )
 
@@ -66,8 +75,10 @@ data class CreateListingRequest(
     val description: String,
     val price: Double,
     val category: String,
+    val condition: String = "Good",
     val imageUrl: String? = null,
-    val sellerContact: String = ""
+    val sellerContact: String = "",
+    val expiryDays: Int = 30
 )
 
 @Serializable
@@ -76,7 +87,9 @@ data class UpdateListingRequest(
     val description: String? = null,
     val price: Double? = null,
     val category: String? = null,
-    val imageUrl: String? = null
+    val condition: String? = null,
+    val imageUrl: String? = null,
+    val expiryDays: Int? = null
 )
 
 // CART
@@ -108,7 +121,9 @@ data class CheckoutRequest(
     val cardNumber: String,
     val cardExpiry: String,
     val cardCvv: String,
-    val cardHolder: String
+    val cardHolder: String,
+    val fulfillmentMethod: String = "PICKUP",
+    val fulfillmentLocation: String = ""
 )
 
 // ORDER
@@ -130,7 +145,66 @@ data class Order(
     val totalAmount: Double,
     val status: String,
     val cardLastFour: String? = null,
+    val fulfillmentMethod: String = "PICKUP",
+    val fulfillmentLocation: String = "",
     val createdAt: Long
+)
+
+@Serializable
+data class CreateCommentRequest(
+    val message: String,
+    val parentCommentId: Int? = null
+)
+
+@Serializable
+data class ListingComment(
+    val id: Int,
+    val listingId: Int,
+    val authorId: Int,
+    val authorName: String,
+    val authorRole: String,
+    val parentCommentId: Int? = null,
+    val message: String,
+    val createdAt: Long
+)
+
+@Serializable
+data class SendMessageRequest(
+    val message: String
+)
+
+@Serializable
+data class ChatMessage(
+    val id: Int,
+    val listingId: Int,
+    val listingTitle: String,
+    val buyerId: Int,
+    val buyerName: String,
+    val sellerId: Int,
+    val sellerName: String,
+    val senderId: Int,
+    val senderName: String,
+    val message: String,
+    val createdAt: Long,
+    val readAt: Long? = null
+)
+
+@Serializable
+data class Conversation(
+    val listingId: Int,
+    val listingTitle: String,
+    val listingImageUrl: String?,
+    val otherUserId: Int,
+    val otherUserName: String,
+    val lastMessage: String,
+    val lastMessageAt: Long,
+    val unreadCount: Int
+)
+
+@Serializable
+data class SellerNotificationSummary(
+    val commentCount: Int,
+    val unreadMessageCount: Int
 )
 
 // GENERIC

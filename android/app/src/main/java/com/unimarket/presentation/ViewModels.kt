@@ -6,17 +6,23 @@ import com.unimarket.data.local.TokenManager
 import com.unimarket.data.repository.AdminRepository
 import com.unimarket.data.repository.AuthRepository
 import com.unimarket.data.repository.CartRepository
+import com.unimarket.data.repository.InteractionRepository
 import com.unimarket.data.repository.ListingRepository
 import com.unimarket.data.repository.OrderRepository
 import com.unimarket.data.repository.Result
 import com.unimarket.domain.model.AddToCartRequest
 import com.unimarket.domain.model.AuthResponse
+import com.unimarket.domain.model.ChangePasswordRequest
+import com.unimarket.domain.model.ChatMessage
 import com.unimarket.domain.model.CheckoutRequest
+import com.unimarket.domain.model.Conversation
 import com.unimarket.domain.model.CreateListingRequest
+import com.unimarket.domain.model.ListingComment
 import com.unimarket.domain.model.Listing
 import com.unimarket.domain.model.LoginRequest
 import com.unimarket.domain.model.Order
 import com.unimarket.domain.model.RegisterRequest
+import com.unimarket.domain.model.SellerNotificationSummary
 import com.unimarket.domain.model.UpdateListingRequest
 import com.unimarket.domain.model.User
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -44,6 +50,9 @@ class AuthViewModel(
     private val _authState = MutableStateFlow<UiState<AuthResponse>>(UiState.Idle)
     val authState: StateFlow<UiState<AuthResponse>> = _authState.asStateFlow()
 
+    private val _passwordState = MutableStateFlow<UiState<Unit>>(UiState.Idle)
+    val passwordState: StateFlow<UiState<Unit>> = _passwordState.asStateFlow()
+
     val currentUser: StateFlow<User?> = tokenManager.user
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
@@ -65,15 +74,36 @@ class AuthViewModel(
         phone: String,
         userId: String,
         password: String
+    ) = register(firstName, lastName, email, phone, userId, password, null)
+
+    fun register(
+        firstName: String,
+        lastName: String,
+        email: String,
+        phone: String,
+        userId: String,
+        password: String,
+        profileImage: String?
     ) = viewModelScope.launch {
         _authState.value = UiState.Loading
         val req = RegisterRequest(firstName, lastName, email, phone, userId, password)
         when (val r = repo.register(req)) {
             is Result.Success -> {
                 tokenManager.saveSession(r.data.token, r.data.user)
+                if (!profileImage.isNullOrBlank()) {
+                    tokenManager.saveProfileImage(r.data.user.id, profileImage)
+                }
                 _authState.value = UiState.Success(r.data)
             }
             is Result.Error -> _authState.value = UiState.Error(r.message)
+        }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String) = viewModelScope.launch {
+        _passwordState.value = UiState.Loading
+        when (val r = repo.changePassword(ChangePasswordRequest(currentPassword, newPassword))) {
+            is Result.Success -> _passwordState.value = UiState.Success(Unit)
+            is Result.Error -> _passwordState.value = UiState.Error(r.message)
         }
     }
 
@@ -85,12 +115,17 @@ class AuthViewModel(
     fun resetState() {
         _authState.value = UiState.Idle
     }
+
+    fun resetPasswordState() {
+        _passwordState.value = UiState.Idle
+    }
 }
 
 class BuyerViewModel(
     private val listingRepo: ListingRepository,
     private val cartRepo: CartRepository,
-    private val orderRepo: OrderRepository
+    private val orderRepo: OrderRepository,
+    private val interactionRepo: InteractionRepository
 ) : ViewModel() {
 
     private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
@@ -104,6 +139,15 @@ class BuyerViewModel(
 
     private val _checkoutResult = MutableStateFlow<UiState<Order>>(UiState.Idle)
     val checkoutResult: StateFlow<UiState<Order>> = _checkoutResult.asStateFlow()
+
+    private val _comments = MutableStateFlow<UiState<List<ListingComment>>>(UiState.Idle)
+    val comments: StateFlow<UiState<List<ListingComment>>> = _comments.asStateFlow()
+
+    private val _messages = MutableStateFlow<UiState<List<ChatMessage>>>(UiState.Idle)
+    val messages: StateFlow<UiState<List<ChatMessage>>> = _messages.asStateFlow()
+
+    private val _conversations = MutableStateFlow<UiState<List<Conversation>>>(UiState.Idle)
+    val conversations: StateFlow<UiState<List<Conversation>>> = _conversations.asStateFlow()
 
     private val _toast = MutableSharedFlow<String>()
     val toast: SharedFlow<String> = _toast.asSharedFlow()
@@ -169,10 +213,55 @@ class BuyerViewModel(
     fun resetCheckout() {
         _checkoutResult.value = UiState.Idle
     }
+
+    fun loadComments(listingId: Int) = viewModelScope.launch {
+        _comments.value = UiState.Loading
+        when (val r = interactionRepo.getListingComments(listingId)) {
+            is Result.Success -> _comments.value = UiState.Success(r.data)
+            is Result.Error -> _comments.value = UiState.Error(r.message)
+        }
+    }
+
+    fun addComment(listingId: Int, message: String) = viewModelScope.launch {
+        when (val r = interactionRepo.addListingComment(listingId, message)) {
+            is Result.Success -> {
+                _toast.emit("Comment posted")
+                loadComments(listingId)
+            }
+            is Result.Error -> _toast.emit(r.message)
+        }
+    }
+
+    fun loadMessages(listingId: Int, otherUserId: Int) = viewModelScope.launch {
+        _messages.value = UiState.Loading
+        when (val r = interactionRepo.getMessageThread(listingId, otherUserId)) {
+            is Result.Success -> {
+                _messages.value = UiState.Success(r.data)
+                loadConversations()
+            }
+            is Result.Error -> _messages.value = UiState.Error(r.message)
+        }
+    }
+
+    fun loadConversations() = viewModelScope.launch {
+        _conversations.value = UiState.Loading
+        when (val r = interactionRepo.getConversations()) {
+            is Result.Success -> _conversations.value = UiState.Success(r.data)
+            is Result.Error -> _conversations.value = UiState.Error(r.message)
+        }
+    }
+
+    fun sendMessage(listingId: Int, otherUserId: Int, message: String) = viewModelScope.launch {
+        when (val r = interactionRepo.sendMessage(listingId, otherUserId, message)) {
+            is Result.Success -> loadMessages(listingId, otherUserId)
+            is Result.Error -> _toast.emit(r.message)
+        }
+    }
 }
 
 class SellerViewModel(
-    private val repo: ListingRepository
+    private val repo: ListingRepository,
+    private val interactionRepo: InteractionRepository
 ) : ViewModel() {
 
     private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
@@ -180,6 +269,18 @@ class SellerViewModel(
 
     private val _actionResult = MutableStateFlow<UiState<Unit>>(UiState.Idle)
     val actionResult: StateFlow<UiState<Unit>> = _actionResult.asStateFlow()
+
+    private val _sellerComments = MutableStateFlow<UiState<List<ListingComment>>>(UiState.Idle)
+    val sellerComments: StateFlow<UiState<List<ListingComment>>> = _sellerComments.asStateFlow()
+
+    private val _notifications = MutableStateFlow<UiState<SellerNotificationSummary>>(UiState.Idle)
+    val notifications: StateFlow<UiState<SellerNotificationSummary>> = _notifications.asStateFlow()
+
+    private val _conversations = MutableStateFlow<UiState<List<Conversation>>>(UiState.Idle)
+    val conversations: StateFlow<UiState<List<Conversation>>> = _conversations.asStateFlow()
+
+    private val _messages = MutableStateFlow<UiState<List<ChatMessage>>>(UiState.Idle)
+    val messages: StateFlow<UiState<List<ChatMessage>>> = _messages.asStateFlow()
 
     private val _toast = MutableSharedFlow<String>()
     val toast: SharedFlow<String> = _toast.asSharedFlow()
@@ -192,12 +293,73 @@ class SellerViewModel(
         }
     }
 
+    fun loadSellerInteractions() {
+        loadSellerComments()
+        loadNotifications()
+        loadConversations()
+    }
+
+    fun loadSellerComments() = viewModelScope.launch {
+        _sellerComments.value = UiState.Loading
+        when (val r = interactionRepo.getSellerComments()) {
+            is Result.Success -> _sellerComments.value = UiState.Success(r.data)
+            is Result.Error -> _sellerComments.value = UiState.Error(r.message)
+        }
+    }
+
+    fun loadNotifications() = viewModelScope.launch {
+        _notifications.value = UiState.Loading
+        when (val r = interactionRepo.getSellerNotifications()) {
+            is Result.Success -> _notifications.value = UiState.Success(r.data)
+            is Result.Error -> _notifications.value = UiState.Error(r.message)
+        }
+    }
+
+    fun loadConversations() = viewModelScope.launch {
+        _conversations.value = UiState.Loading
+        when (val r = interactionRepo.getConversations()) {
+            is Result.Success -> _conversations.value = UiState.Success(r.data)
+            is Result.Error -> _conversations.value = UiState.Error(r.message)
+        }
+    }
+
+    fun replyToComment(listingId: Int, parentCommentId: Int, message: String) = viewModelScope.launch {
+        when (val r = interactionRepo.addListingComment(listingId, message, parentCommentId)) {
+            is Result.Success -> {
+                _toast.emit("Reply posted")
+                loadSellerInteractions()
+            }
+            is Result.Error -> _toast.emit(r.message)
+        }
+    }
+
+    fun loadMessages(listingId: Int, otherUserId: Int) = viewModelScope.launch {
+        _messages.value = UiState.Loading
+        when (val r = interactionRepo.getMessageThread(listingId, otherUserId)) {
+            is Result.Success -> {
+                _messages.value = UiState.Success(r.data)
+                loadNotifications()
+                loadConversations()
+            }
+            is Result.Error -> _messages.value = UiState.Error(r.message)
+        }
+    }
+
+    fun sendMessage(listingId: Int, otherUserId: Int, message: String) = viewModelScope.launch {
+        when (val r = interactionRepo.sendMessage(listingId, otherUserId, message)) {
+            is Result.Success -> loadMessages(listingId, otherUserId)
+            is Result.Error -> _toast.emit(r.message)
+        }
+    }
+
     fun createListing(
         title: String,
         desc: String,
         price: Double,
         cat: String,
-        img: String?
+        img: String?,
+        condition: String,
+        expiryDays: Int
     ) = viewModelScope.launch {
         _actionResult.value = UiState.Loading
 
@@ -206,8 +368,10 @@ class SellerViewModel(
             description = desc,
             price = price,
             category = cat,
+            condition = condition,
             imageUrl = img,
-            sellerContact = ""
+            sellerContact = "",
+            expiryDays = expiryDays
         )
 
         when (val r = repo.create(req)) {
@@ -229,7 +393,9 @@ class SellerViewModel(
         desc: String?,
         price: Double?,
         cat: String?,
-        img: String?
+        img: String?,
+        condition: String?,
+        expiryDays: Int?
     ) = viewModelScope.launch {
         _actionResult.value = UiState.Loading
 
@@ -238,7 +404,9 @@ class SellerViewModel(
             description = desc,
             price = price,
             category = cat,
-            imageUrl = img
+            condition = condition,
+            imageUrl = img,
+            expiryDays = expiryDays
         )
 
         when (val r = repo.update(id, req)) {
@@ -276,8 +444,16 @@ class AdminViewModel(
     private val _users = MutableStateFlow<UiState<List<User>>>(UiState.Idle)
     val users: StateFlow<UiState<List<User>>> = _users.asStateFlow()
 
+    private val _listings = MutableStateFlow<UiState<List<Listing>>>(UiState.Idle)
+    val listings: StateFlow<UiState<List<Listing>>> = _listings.asStateFlow()
+
     private val _toast = MutableSharedFlow<String>()
     val toast: SharedFlow<String> = _toast.asSharedFlow()
+
+    fun loadAdminData() {
+        loadUsers()
+        loadListings()
+    }
 
     fun loadUsers() = viewModelScope.launch {
         _users.value = UiState.Loading
@@ -287,12 +463,20 @@ class AdminViewModel(
         }
     }
 
+    fun loadListings() = viewModelScope.launch {
+        _listings.value = UiState.Loading
+        when (val r = repo.getMarketplaceListings()) {
+            is Result.Success -> _listings.value = UiState.Success(r.data)
+            is Result.Error -> _listings.value = UiState.Error(r.message)
+        }
+    }
+
     fun toggleUser(id: Int, currentlyActive: Boolean) = viewModelScope.launch {
         val r = if (currentlyActive) repo.deactivateUser(id) else repo.activateUser(id)
         when (r) {
             is Result.Success -> {
                 _toast.emit(r.data.message)
-                loadUsers()
+                loadAdminData()
             }
             is Result.Error -> _toast.emit(r.message)
         }
@@ -300,7 +484,10 @@ class AdminViewModel(
 
     fun deleteListing(id: Int) = viewModelScope.launch {
         when (val r = repo.deleteListing(id)) {
-            is Result.Success -> _toast.emit("Listing removed")
+            is Result.Success -> {
+                _toast.emit("Listing removed")
+                loadAdminData()
+            }
             is Result.Error -> _toast.emit(r.message)
         }
     }

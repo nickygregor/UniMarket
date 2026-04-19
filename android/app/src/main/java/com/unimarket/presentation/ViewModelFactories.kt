@@ -19,20 +19,22 @@ class AuthViewModelFactory(
 class BuyerViewModelFactory(
     private val listingRepo : ListingRepository,
     private val cartRepo    : CartRepository,
-    private val orderRepo   : OrderRepository
+    private val orderRepo   : OrderRepository,
+    private val interactionRepo: InteractionRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        BuyerViewModel(listingRepo, cartRepo, orderRepo) as T
+        BuyerViewModel(listingRepo, cartRepo, orderRepo, interactionRepo) as T
 }
 
 // ── SellerViewModel Factory ───────────────────────────────────────────────────
 class SellerViewModelFactory(
-    private val repo: ListingRepository
+    private val repo: ListingRepository,
+    private val interactionRepo: InteractionRepository
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T =
-        SellerViewModel(repo) as T
+        SellerViewModel(repo, interactionRepo) as T
 }
 
 // ── AdminViewModel Factory ────────────────────────────────────────────────────

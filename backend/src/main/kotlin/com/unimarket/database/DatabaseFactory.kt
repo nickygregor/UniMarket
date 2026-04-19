@@ -16,11 +16,27 @@ object DatabaseFactory {
             driver = "org.sqlite.JDBC"
         )
         transaction {
-            SchemaUtils.create(Users, Listings, CartItems, Orders, OrderItems)
+            SchemaUtils.create(Users, Listings, CartItems, Orders, OrderItems, ListingComments, ChatMessages)
             migrateListingsImageUrlToTextIfNeeded()
+            migrateOrderFulfillmentFieldsIfNeeded()
             seedAdmin()
         }
         println("✅ Database initialised — unimarket.db")
+    }
+
+    private fun Transaction.migrateOrderFulfillmentFieldsIfNeeded() {
+        val columnNames = exec("PRAGMA table_info(orders)") { rs ->
+            generateSequence {
+                if (rs.next()) rs.getString("name") else null
+            }.toList()
+        }.orEmpty().toSet()
+
+        if ("fulfillment_method" !in columnNames) {
+            exec("ALTER TABLE orders ADD COLUMN fulfillment_method VARCHAR(20) NOT NULL DEFAULT 'PICKUP'")
+        }
+        if ("fulfillment_location" !in columnNames) {
+            exec("ALTER TABLE orders ADD COLUMN fulfillment_location TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     private fun Transaction.migrateListingsImageUrlToTextIfNeeded() {

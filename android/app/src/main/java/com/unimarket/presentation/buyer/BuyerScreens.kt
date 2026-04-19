@@ -34,10 +34,13 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Store
@@ -50,9 +53,11 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -86,9 +91,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.unimarket.R
+import com.unimarket.ChatTarget
 import com.unimarket.domain.model.Cart
 import com.unimarket.domain.model.CartItem
+import com.unimarket.domain.model.ChatMessage
 import com.unimarket.domain.model.CheckoutRequest
+import com.unimarket.domain.model.Conversation
+import com.unimarket.domain.model.ListingComment
 import com.unimarket.domain.model.Listing
 import com.unimarket.domain.model.Order
 import com.unimarket.presentation.BuyerViewModel
@@ -101,6 +110,19 @@ import java.util.Date
 import java.util.Locale
 
 val fmt: NumberFormat = NumberFormat.getCurrencyInstance(Locale.US)
+
+private val UtaPickupLocations = listOf(
+    "E.H. Hereford University Center",
+    "Central Library",
+    "The Commons",
+    "College Park Center",
+    "Nedderman Hall",
+    "Pickard Hall",
+    "Arlington Hall"
+)
+
+private fun fulfillmentLabel(method: String): String =
+    if (method.equals("DELIVERY", ignoreCase = true)) "Delivery" else "Pickup"
 
 private fun listingImageUrls(value: String?): List<String> {
     return value
@@ -143,8 +165,16 @@ private fun isValidExpiry(expiry: String): Boolean {
     return expiry.matches(Regex("(0[1-9]|1[0-2])/\\d{2}"))
 }
 
-private fun formatOrderDate(timestamp: Long): String {
+fun formatOrderDate(timestamp: Long): String {
     return SimpleDateFormat("MMM dd, yyyy hh:mm a", Locale.US).format(Date(timestamp))
+}
+
+private fun formatListingExpiry(timestamp: Long): String {
+    return if (timestamp <= 0L) {
+        "Expires after 30 days"
+    } else {
+        "Expires ${SimpleDateFormat("MMM dd, yyyy", Locale.US).format(Date(timestamp))}"
+    }
 }
 
 private fun cartCount(cart: Cart?): Int {
@@ -202,6 +232,7 @@ fun BrowseScreen(
     onProfileClick: () -> Unit,
     onLogout: () -> Unit,
     onOrdersClick: () -> Unit = {},
+    onMessagesClick: () -> Unit = {},
     onSellClick: () -> Unit = {},
     onMyListingsClick: () -> Unit = {}
 ) {
@@ -210,7 +241,12 @@ fun BrowseScreen(
     var searchQuery by remember { mutableStateOf("") }
 
     val cartValue = (cartState as? UiState.Success<Cart>)?.data
+    val conversationsState by viewModel.conversations.collectAsState()
     val badgeCount = cartCount(cartValue)
+    val unreadMessages = (conversationsState as? UiState.Success<List<Conversation>>)
+        ?.data
+        .orEmpty()
+        .sumOf { it.unreadCount }
     val listings = (listingsState as? UiState.Success<List<Listing>>)?.data.orEmpty()
     val liveCount = listings.count { it.isActive }
     val categoryCount = listings.map { it.category }.distinct().size
@@ -218,10 +254,11 @@ fun BrowseScreen(
     LaunchedEffect(Unit) {
         viewModel.loadListings()
         viewModel.loadCart()
+        viewModel.loadConversations()
     }
 
     Scaffold(
-        containerColor = Color(0xFFF7F8FA),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -259,6 +296,17 @@ fun BrowseScreen(
                     }
                     IconButton(onClick = onOrdersClick) {
                         Icon(Icons.Filled.ShoppingBag, null, tint = Color.White)
+                    }
+                    IconButton(onClick = onMessagesClick) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadMessages > 0) {
+                                    Badge { Text("$unreadMessages") }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Filled.Send, null, tint = Color.White)
+                        }
                     }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Filled.Logout, null, tint = Color.White)
@@ -312,7 +360,7 @@ fun BrowseScreen(
                                 viewModel.loadListings(keyword = it.ifBlank { null })
                             },
                             placeholder = { Text("Search books, bikes, electronics...") },
-                            leadingIcon = { Icon(Icons.Filled.Search, null, tint = UniNavy) },
+                            leadingIcon = { Icon(Icons.Filled.Search, null, tint = UniAccent) },
                             singleLine = true,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -320,11 +368,13 @@ fun BrowseScreen(
                             shape = RoundedCornerShape(18.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = UniAccent,
-                                unfocusedBorderColor = Color(0xFFD8E0EB),
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedTextColor = Color(0xFF132033),
-                                unfocusedTextColor = Color(0xFF132033),
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                 cursorColor = UniAccent
                             )
                         )
@@ -568,12 +618,12 @@ private fun BrowseSectionTitle(
             text = title,
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
-            color = Color(0xFF132033)
+            color = MaterialTheme.colorScheme.onBackground
         )
         Text(
             text = subtitle,
             fontSize = 12.sp,
-            color = Color(0xFF6B7280)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -589,7 +639,7 @@ fun ListingCard(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(6.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(20.dp)
     ) {
         Column {
@@ -643,7 +693,7 @@ fun ListingCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     fontSize = 15.sp,
-                    color = Color(0xFF132033),
+                    color = MaterialTheme.colorScheme.onSurface,
                     lineHeight = 19.sp
                 )
 
@@ -652,8 +702,18 @@ fun ListingCard(
                 Text(
                     "Sold by ${listing.sellerName}",
                     fontSize = 11.sp,
-                    color = Color(0xFF6B7280),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
+                )
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    "${listing.condition} • ${formatListingExpiry(listing.expiresAt)}",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
                 Spacer(Modifier.height(8.dp))
@@ -680,7 +740,7 @@ fun ListingCard(
                         Icon(
                             Icons.Filled.AddShoppingCart,
                             null,
-                            tint = if (isOwnListing) Color.LightGray else UniNavy,
+                            tint = if (isOwnListing) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f) else UniAccent,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -711,13 +771,13 @@ fun CategoryChips(onSelect: (String?) -> Unit) {
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = UniNavy,
                     selectedLabelColor = Color.White,
-                    containerColor = Color.White,
-                    labelColor = Color(0xFF3B4B60)
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    labelColor = MaterialTheme.colorScheme.onSurface
                 ),
                 border = FilterChipDefaults.filterChipBorder(
                     enabled = true,
                     selected = selected == cat,
-                    borderColor = if (selected == cat) UniNavy else Color(0xFFD9E1EA)
+                    borderColor = if (selected == cat) UniNavy else MaterialTheme.colorScheme.outline
                 )
             )
         }
@@ -764,19 +824,22 @@ fun ListingDetailScreen(
     currentUserId: Int?,
     viewModel: BuyerViewModel,
     onBack: () -> Unit,
-    onCartOpen: () -> Unit
+    onCartOpen: () -> Unit,
+    onMessageSeller: (Listing) -> Unit
 ) {
     val cartState by viewModel.cart.collectAsState()
+    val commentsState by viewModel.comments.collectAsState()
     val cartValue = (cartState as? UiState.Success<Cart>)?.data
     val badgeCount = cartCount(cartValue)
     val isOwnListing = currentUserId != null && listing.sellerId == currentUserId
 
     LaunchedEffect(Unit) {
         viewModel.loadCart()
+        viewModel.loadComments(listing.id)
     }
 
     Scaffold(
-        containerColor = Color(0xFFF5F7FA),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("Product Detail", fontWeight = FontWeight.Bold) },
@@ -805,7 +868,10 @@ fun ListingDetailScreen(
             )
         },
         bottomBar = {
-            Surface(shadowElevation = 10.dp) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shadowElevation = 10.dp
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -814,7 +880,7 @@ fun ListingDetailScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Price", color = Color.Gray, fontSize = 12.sp)
+                        Text("Price", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                         Text(
                             fmt.format(listing.price),
                             color = UniAccent,
@@ -844,6 +910,7 @@ fun ListingDetailScreen(
                             Text("Add to Cart", fontWeight = FontWeight.Bold)
                         }
                     }
+
                 }
             }
         }
@@ -894,45 +961,437 @@ fun ListingDetailScreen(
                         text = listing.title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 32.sp,
-                        color = Color.Black
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
                     Spacer(Modifier.height(10.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Store, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Filled.Store, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Sold by ${listing.sellerName}", color = Color.Gray)
+                        Text("Sold by ${listing.sellerName}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+
+                    if (!isOwnListing) {
+                        Spacer(Modifier.height(12.dp))
+                        FilledTonalButton(
+                            onClick = { onMessageSeller(listing) },
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = UniAccent.copy(alpha = 0.15f),
+                                contentColor = UniAccent
+                            ),
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Icon(Icons.Filled.Send, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Private message seller", fontWeight = FontWeight.Bold)
+                        }
                     }
 
                     Spacer(Modifier.height(6.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.CalendarMonth, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Filled.CalendarMonth, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Listed on ${formatOrderDate(listing.createdAt)}", color = Color.Gray)
+                        Text("Listed on ${formatOrderDate(listing.createdAt)}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
 
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = "Condition: ${listing.condition}",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+
+                    Spacer(Modifier.height(6.dp))
+
+                    Text(
+                        text = formatListingExpiry(listing.expiresAt),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+
                     Spacer(Modifier.height(16.dp))
-                    HorizontalDivider()
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
                     Spacer(Modifier.height(16.dp))
 
                     Text(
                         "Description",
                         fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
                         listing.description,
-                        color = Color(0xFF4B5563),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 16.sp,
                         lineHeight = 24.sp
                     )
 
-                    Spacer(Modifier.height(100.dp))
+                    Spacer(Modifier.height(20.dp))
+
+                    ListingCommentsSection(
+                        commentsState = commentsState,
+                        currentUserId = currentUserId,
+                        onPost = { message -> viewModel.addComment(listing.id, message) },
+                        onRetry = { viewModel.loadComments(listing.id) }
+                    )
+
+                    Spacer(Modifier.height(120.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ListingCommentsSection(
+    commentsState: UiState<List<ListingComment>>,
+    currentUserId: Int?,
+    onPost: (String) -> Unit,
+    onRetry: () -> Unit
+) {
+    var message by remember { mutableStateOf("") }
+
+    Text(
+        text = "Questions & Comments",
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+    Spacer(Modifier.height(10.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedTextField(
+            value = message,
+            onValueChange = { message = it },
+            placeholder = { Text("Ask the seller a question...") },
+            modifier = Modifier.weight(1f),
+            minLines = 1,
+            maxLines = 3,
+            shape = RoundedCornerShape(14.dp)
+        )
+        IconButton(
+            onClick = {
+                if (message.isNotBlank()) {
+                    onPost(message.trim())
+                    message = ""
+                }
+            },
+            enabled = message.isNotBlank()
+        ) {
+            Icon(Icons.Filled.Send, null, tint = UniAccent)
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+
+    when (commentsState) {
+        is UiState.Loading -> CircularProgressIndicator(color = UniAccent, modifier = Modifier.size(24.dp))
+        is UiState.Error -> ErrorCard(commentsState.msg, onRetry)
+        is UiState.Success -> {
+            val comments = commentsState.data
+            if (comments.isEmpty()) {
+                Text(
+                    "No comments yet. Be the first to ask.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    comments.forEach { comment ->
+                        CommentCard(
+                            comment = comment,
+                            isMine = currentUserId == comment.authorId
+                        )
+                    }
+                }
+            }
+        }
+        else -> Unit
+    }
+}
+
+@Composable
+private fun CommentCard(
+    comment: ListingComment,
+    isMine: Boolean
+) {
+    val isReply = comment.parentCommentId != null
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = if (isReply) 22.dp else 0.dp),
+        color = if (isMine) {
+            UniAccent.copy(alpha = 0.12f)
+        } else {
+            MaterialTheme.colorScheme.surface
+        },
+        shape = RoundedCornerShape(12.dp),
+        tonalElevation = 1.dp
+    ) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(comment.authorName, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(formatOrderDate(comment.createdAt), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
+            }
+            Text(comment.message, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
+fun BuyerChatScreen(
+    viewModel: BuyerViewModel,
+    currentUserId: Int?,
+    target: ChatTarget,
+    onBack: () -> Unit
+) {
+    ChatScreenScaffold(
+        title = target.otherUserName,
+        subtitle = target.title,
+        messagesState = viewModel.messages.collectAsState().value,
+        currentUserId = currentUserId,
+        onBack = onBack,
+        onLoad = { viewModel.loadMessages(target.listingId, target.otherUserId) },
+        onSend = { viewModel.sendMessage(target.listingId, target.otherUserId, it) }
+    )
+}
+
+@Composable
+fun BuyerMessagesScreen(
+    viewModel: BuyerViewModel,
+    onBack: () -> Unit,
+    onOpenChat: (Conversation) -> Unit
+) {
+    val conversationsState by viewModel.conversations.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadConversations()
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Messages", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = UniNavy,
+                    titleContentColor = Color.White
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, null, tint = Color.White)
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        when (val state = conversationsState) {
+            is UiState.Loading -> Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = UniAccent)
+            }
+            is UiState.Error -> Box(Modifier.fillMaxSize().padding(padding)) {
+                ErrorCard(state.msg) { viewModel.loadConversations() }
+            }
+            is UiState.Success -> {
+                if (state.data.isEmpty()) {
+                    EmptyState("No messages yet", Icons.Filled.Send)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(state.data) { conversation ->
+                            ConversationCard(
+                                conversation = conversation,
+                                onClick = { onOpenChat(conversation) }
+                            )
+                        }
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+fun ConversationCard(
+    conversation: Conversation,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            ListingImage(
+                imageUrl = firstListingImageUrl(conversation.listingImageUrl),
+                fallbackUrl = "https://placehold.co/100x100/png",
+                contentDescription = conversation.listingTitle,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp))
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        conversation.otherUserName,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (conversation.unreadCount > 0) {
+                        Badge { Text("${conversation.unreadCount}") }
+                    }
+                }
+                Text(
+                    conversation.listingTitle,
+                    color = UniAccent,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    conversation.lastMessage,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatScreenScaffold(
+    title: String,
+    subtitle: String,
+    messagesState: UiState<List<ChatMessage>>,
+    currentUserId: Int?,
+    onBack: () -> Unit,
+    onLoad: () -> Unit,
+    onSend: (String) -> Unit
+) {
+    var message by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { onLoad() }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(title, fontWeight = FontWeight.Bold)
+                        Text(subtitle, fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f), maxLines = 1)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = UniNavy, titleContentColor = Color.White),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, null, tint = Color.White)
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = message,
+                        onValueChange = { message = it },
+                        placeholder = { Text("Write a message...") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(16.dp),
+                        maxLines = 4
+                    )
+                    IconButton(
+                        onClick = {
+                            if (message.isNotBlank()) {
+                                onSend(message.trim())
+                                message = ""
+                            }
+                        },
+                        enabled = message.isNotBlank()
+                    ) {
+                        Icon(Icons.Filled.Send, null, tint = UniAccent)
+                    }
+                }
+            }
+        }
+    ) { padding ->
+        when (messagesState) {
+            is UiState.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = UniAccent)
+            }
+            is UiState.Error -> Box(Modifier.fillMaxSize().padding(padding)) {
+                ErrorCard(messagesState.msg, onLoad)
+            }
+            is UiState.Success -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(messagesState.data, key = { it.id }) { msg ->
+                        val mine = currentUserId == msg.senderId
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start
+                        ) {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(0.78f),
+                                color = if (mine) UniAccent else MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(
+                                        msg.senderName,
+                                        fontSize = 11.sp,
+                                        color = if (mine) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Text(
+                                        msg.message,
+                                        color = if (mine) Color.White else MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            else -> Unit
         }
     }
 }
@@ -951,6 +1410,11 @@ fun CartScreen(
     var cardNumberField by remember { mutableStateOf(TextFieldValue("")) }
     var expiryField by remember { mutableStateOf(TextFieldValue("")) }
     var cvvField by remember { mutableStateOf(TextFieldValue("")) }
+    var fulfillmentMethod by remember { mutableStateOf("PICKUP") }
+    var pickupLocation by remember { mutableStateOf(UtaPickupLocations.first()) }
+    var deliveryStreet by remember { mutableStateOf("") }
+    var deliveryCity by remember { mutableStateOf("") }
+    var deliveryZip by remember { mutableStateOf("") }
     var localError by remember { mutableStateOf<String?>(null) }
 
     val cardNumber = cardNumberField.text
@@ -969,7 +1433,7 @@ fun CartScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF5F7FA),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("My Cart", fontWeight = FontWeight.Bold) },
@@ -990,7 +1454,10 @@ fun CartScreen(
                 val hasUnavailableItems = cart.items.any { !it.listing.isActive }
                 val hasOwnItems = currentUserId != null && cart.items.any { it.listing.sellerId == currentUserId }
 
-                Surface(shadowElevation = 8.dp) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface,
+                    shadowElevation = 8.dp
+                ) {
                     Column(Modifier.padding(16.dp)) {
                         SummaryRow(
                             label = "Items",
@@ -1029,10 +1496,19 @@ fun CartScreen(
                         Button(
                             onClick = {
                                 val digitsOnly = cardNumber.replace(" ", "")
+                                val fulfillmentLocation = if (fulfillmentMethod == "PICKUP") {
+                                    pickupLocation
+                                } else {
+                                    "${deliveryStreet.trim()}, ${deliveryCity.trim()}, TX ${deliveryZip.trim()}"
+                                }
                                 when {
                                     hasOwnItems -> localError = "You cannot buy your own listing."
                                     hasUnavailableItems -> localError = "Remove unavailable items from your cart first."
                                     cart.items.isEmpty() -> localError = "Your cart is empty."
+                                    fulfillmentMethod == "DELIVERY" && deliveryStreet.isBlank() -> localError = "Enter a street address."
+                                    fulfillmentMethod == "DELIVERY" && deliveryCity.isBlank() -> localError = "Enter a city."
+                                    fulfillmentMethod == "DELIVERY" && !deliveryZip.matches(Regex("\\d{5}")) -> localError = "ZIP code must be 5 digits."
+                                    fulfillmentLocation.isBlank() -> localError = "Choose a pickup spot or enter a delivery location."
                                     cardHolder.isBlank() -> localError = "Enter cardholder name."
                                     digitsOnly.length != 16 -> localError = "Card number must be 16 digits."
                                     !isValidExpiry(expiry) -> localError = "Use expiry format MM/YY."
@@ -1044,7 +1520,9 @@ fun CartScreen(
                                                 cardNumber = digitsOnly,
                                                 cardExpiry = expiry,
                                                 cardCvv = cvv,
-                                                cardHolder = cardHolder.trim()
+                                                cardHolder = cardHolder.trim(),
+                                                fulfillmentMethod = fulfillmentMethod,
+                                                fulfillmentLocation = fulfillmentLocation
                                             )
                                         )
                                     }
@@ -1116,7 +1594,7 @@ fun CartScreen(
                     ) {
                         item {
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(16.dp),
                                 elevation = CardDefaults.cardElevation(3.dp)
                             ) {
@@ -1124,7 +1602,8 @@ fun CartScreen(
                                     Text(
                                         text = "Order Summary",
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Spacer(Modifier.height(10.dp))
                                     SummaryRow("Items in Cart", "$itemCount")
@@ -1160,7 +1639,7 @@ fun CartScreen(
                                     Text(
                                         text = "You're buying:",
                                         fontSize = 13.sp,
-                                        color = Color.Gray,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
@@ -1179,12 +1658,158 @@ fun CartScreen(
                         item {
                             Spacer(Modifier.height(8.dp))
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 shape = RoundedCornerShape(16.dp),
                                 elevation = CardDefaults.cardElevation(3.dp)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Payment Details", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                    Text(
+                                        "Pickup or Delivery",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        FilterChip(
+                                            selected = fulfillmentMethod == "PICKUP",
+                                            onClick = {
+                                                fulfillmentMethod = "PICKUP"
+                                                localError = null
+                                            },
+                                            label = { Text("Pickup") },
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = UniAccent.copy(alpha = 0.18f),
+                                                selectedLabelColor = UniAccent,
+                                                selectedLeadingIconColor = UniAccent
+                                            )
+                                        )
+                                        FilterChip(
+                                            selected = fulfillmentMethod == "DELIVERY",
+                                            onClick = {
+                                                fulfillmentMethod = "DELIVERY"
+                                                localError = null
+                                            },
+                                            label = { Text("Delivery") },
+                                            leadingIcon = {
+                                                Icon(Icons.Filled.LocalShipping, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            },
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = UniAccent.copy(alpha = 0.18f),
+                                                selectedLabelColor = UniAccent,
+                                                selectedLeadingIconColor = UniAccent
+                                            )
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    if (fulfillmentMethod == "PICKUP") {
+                                        Text(
+                                            text = "Recommended UTA pickup spots",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            items(UtaPickupLocations) { location ->
+                                                FilterChip(
+                                                    selected = pickupLocation == location,
+                                                    onClick = {
+                                                        pickupLocation = location
+                                                        localError = null
+                                                    },
+                                                    label = {
+                                                        Text(
+                                                            location,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    },
+                                                    colors = FilterChipDefaults.filterChipColors(
+                                                        selectedContainerColor = UniAccent.copy(alpha = 0.18f),
+                                                        selectedLabelColor = UniAccent
+                                                    )
+                                                )
+                                            }
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            "Selected: $pickupLocation",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 12.sp
+                                        )
+                                    } else {
+                                        OutlinedTextField(
+                                            value = deliveryStreet,
+                                            onValueChange = {
+                                                deliveryStreet = it
+                                                localError = null
+                                            },
+                                            label = { Text("Street Address") },
+                                            leadingIcon = { Icon(Icons.Filled.LocationOn, null) },
+                                            placeholder = { Text("Example: 300 W 1st St") },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            shape = RoundedCornerShape(12.dp),
+                                            singleLine = true
+                                        )
+
+                                        Spacer(Modifier.height(10.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            OutlinedTextField(
+                                                value = deliveryCity,
+                                                onValueChange = {
+                                                    deliveryCity = it
+                                                    localError = null
+                                                },
+                                                label = { Text("City") },
+                                                placeholder = { Text("Arlington") },
+                                                modifier = Modifier.weight(1.25f),
+                                                shape = RoundedCornerShape(12.dp),
+                                                singleLine = true
+                                            )
+
+                                            OutlinedTextField(
+                                                value = deliveryZip,
+                                                onValueChange = {
+                                                    deliveryZip = it.filter { ch -> ch.isDigit() }.take(5)
+                                                    localError = null
+                                                },
+                                                label = { Text("ZIP Code") },
+                                                placeholder = { Text("76010") },
+                                                modifier = Modifier.weight(1f),
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                                shape = RoundedCornerShape(12.dp),
+                                                singleLine = true
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                shape = RoundedCornerShape(16.dp),
+                                elevation = CardDefaults.cardElevation(3.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        "Payment Details",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
                                     Spacer(Modifier.height(12.dp))
 
                                     OutlinedTextField(
@@ -1298,7 +1923,7 @@ fun CartItemRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(2.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -1330,17 +1955,18 @@ fun CartItemRow(
                     item.listing.title,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     "Qty: ${item.quantity}  •  ${item.listing.category}",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "Seller: ${item.listing.sellerName}",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (!item.listing.isActive) {
                     Text(
@@ -1374,7 +2000,7 @@ fun OrderConfirmationScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF5F7FA))
+            .background(MaterialTheme.colorScheme.background)
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -1383,7 +2009,7 @@ fun OrderConfirmationScreen(
                 val order = s.data
 
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(6.dp)
                 ) {
@@ -1402,13 +2028,22 @@ fun OrderConfirmationScreen(
                                 modifier = Modifier.size(64.dp)
                             )
                             Column {
-                                Text("Order Confirmed!", fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                                Text("Order #${order.id}", color = Color.Gray)
-                                Text(formatOrderDate(order.createdAt), color = Color.Gray, fontSize = 12.sp)
+                                Text(
+                                    "Order Confirmed!",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("Order #${order.id}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    formatOrderDate(order.createdAt),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 12.sp
+                                )
                             }
                         }
 
-                        HorizontalDivider()
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f))
 
                         SummaryRow("Status", order.status, valueColor = UniAccent, bold = true)
                         SummaryRow("Items Purchased", "${orderItemCount(order)}")
@@ -1417,27 +2052,33 @@ fun OrderConfirmationScreen(
                             "Payment",
                             order.cardLastFour?.let { "Card ending in $it" } ?: "Card processed"
                         )
+                        SummaryRow("Fulfillment", fulfillmentLabel(order.fulfillmentMethod))
+                        SummaryRow("Location", order.fulfillmentLocation)
 
                         HorizontalDivider()
 
                         Text(
                             text = "Purchased Items",
                             fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
                         order.items.forEach { item ->
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                                ),
                                 shape = RoundedCornerShape(12.dp)
                             ) {
                                 Column(modifier = Modifier.padding(12.dp)) {
                                     Text(
                                         text = item.title,
                                         fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
                                     Spacer(Modifier.height(4.dp))
                                     SummaryRow("Quantity", "${item.quantity}")
                                     SummaryRow("Price Each", fmt.format(item.priceAtPurchase))
@@ -1488,7 +2129,7 @@ fun OrderHistoryScreen(
     }
 
     Scaffold(
-        containerColor = Color(0xFFF5F7FA),
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = { Text("My Orders", fontWeight = FontWeight.Bold) },
@@ -1545,7 +2186,7 @@ fun OrderHistoryScreen(
 fun OrderCard(order: Order) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(14.dp),
         elevation = CardDefaults.cardElevation(3.dp)
     ) {
@@ -1555,11 +2196,15 @@ fun OrderCard(order: Order) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Order #${order.id}", fontWeight = FontWeight.Bold)
+                    Text(
+                        "Order #${order.id}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                     Text(
                         formatOrderDate(order.createdAt),
                         fontSize = 11.sp,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -1578,13 +2223,25 @@ fun OrderCard(order: Order) {
             }
 
             Spacer(Modifier.height(8.dp))
-            Text("${orderItemCount(order)} items", color = Color.Gray, fontSize = 12.sp)
+            Text(
+                "${orderItemCount(order)} items",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp
+            )
             Spacer(Modifier.height(6.dp))
             Text(
                 fmt.format(order.totalAmount),
                 color = UniAccent,
                 fontWeight = FontWeight.Bold,
                 fontSize = 18.sp
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${fulfillmentLabel(order.fulfillmentMethod)}: ${order.fulfillmentLocation}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -1594,7 +2251,7 @@ fun OrderCard(order: Order) {
 private fun SummaryRow(
     label: String,
     value: String,
-    valueColor: Color = Color(0xFF111827),
+    valueColor: Color? = null,
     bold: Boolean = false
 ) {
     Row(
@@ -1603,14 +2260,19 @@ private fun SummaryRow(
     ) {
         Text(
             text = label,
-            color = Color.Gray,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp
         )
+        Spacer(Modifier.width(12.dp))
         Text(
             text = value,
-            color = valueColor,
+            modifier = Modifier.weight(1.2f),
+            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
             fontSize = 13.sp,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1628,8 +2290,13 @@ fun EmptyState(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(icon, null, tint = Color.LightGray, modifier = Modifier.size(72.dp))
-            Text(text, color = Color.Gray, fontSize = 16.sp)
+            Icon(
+                icon,
+                null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier.size(72.dp)
+            )
+            Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 16.sp)
         }
     }
 }

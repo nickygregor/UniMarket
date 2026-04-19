@@ -17,6 +17,12 @@ interface UniMarketApi {
         @Body req: LoginRequest
     ): Response<AuthResponse>
 
+    @PUT("auth/change-password")
+    suspend fun changePassword(
+        @Header("Authorization") token: String,
+        @Body req: ChangePasswordRequest
+    ): Response<MessageResponse>
+
     // LISTINGS - PUBLIC
     @GET("listings")
     suspend fun getListings(
@@ -107,4 +113,48 @@ interface UniMarketApi {
         @Header("Authorization") token: String,
         @Path("id") id: Int
     ): Response<MessageResponse>
+
+    // COMMENTS
+    @GET("listings/{listingId}/comments")
+    suspend fun getListingComments(
+        @Path("listingId") listingId: Int
+    ): Response<List<ListingComment>>
+
+    @POST("listings/{listingId}/comments")
+    suspend fun addListingComment(
+        @Header("Authorization") token: String,
+        @Path("listingId") listingId: Int,
+        @Body req: CreateCommentRequest
+    ): Response<ListingComment>
+
+    @GET("seller/interactions/comments")
+    suspend fun getSellerComments(
+        @Header("Authorization") token: String
+    ): Response<List<ListingComment>>
+
+    @GET("seller/interactions/notifications")
+    suspend fun getSellerNotifications(
+        @Header("Authorization") token: String
+    ): Response<SellerNotificationSummary>
+
+    // MESSAGES
+    @GET("messages/conversations")
+    suspend fun getConversations(
+        @Header("Authorization") token: String
+    ): Response<List<Conversation>>
+
+    @GET("messages/listings/{listingId}/users/{otherUserId}")
+    suspend fun getMessageThread(
+        @Header("Authorization") token: String,
+        @Path("listingId") listingId: Int,
+        @Path("otherUserId") otherUserId: Int
+    ): Response<List<ChatMessage>>
+
+    @POST("messages/listings/{listingId}/users/{otherUserId}")
+    suspend fun sendMessage(
+        @Header("Authorization") token: String,
+        @Path("listingId") listingId: Int,
+        @Path("otherUserId") otherUserId: Int,
+        @Body req: SendMessageRequest
+    ): Response<ChatMessage>
 }

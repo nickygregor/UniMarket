@@ -19,6 +19,12 @@ data class LoginRequest(
 )
 
 @Serializable
+data class ChangePasswordRequest(
+    val currentPassword: String,
+    val newPassword: String
+)
+
+@Serializable
 data class AuthResponse(
     val token: String,
     val user: UserResponse
@@ -106,7 +112,9 @@ data class CheckoutRequest(
     val cardNumber: String,
     val cardExpiry: String,
     val cardCvv: String,
-    val cardHolder: String
+    val cardHolder: String,
+    val fulfillmentMethod: String = "PICKUP",
+    val fulfillmentLocation: String = ""
 )
 
 @Serializable
@@ -126,7 +134,66 @@ data class OrderResponse(
     val totalAmount: Double,
     val status: String,
     val cardLastFour: String?,
+    val fulfillmentMethod: String = "PICKUP",
+    val fulfillmentLocation: String = "",
     val createdAt: Long
+)
+
+@Serializable
+data class CreateCommentRequest(
+    val message: String,
+    val parentCommentId: Int? = null
+)
+
+@Serializable
+data class ListingCommentResponse(
+    val id: Int,
+    val listingId: Int,
+    val authorId: Int,
+    val authorName: String,
+    val authorRole: String,
+    val parentCommentId: Int? = null,
+    val message: String,
+    val createdAt: Long
+)
+
+@Serializable
+data class SendMessageRequest(
+    val message: String
+)
+
+@Serializable
+data class ChatMessageResponse(
+    val id: Int,
+    val listingId: Int,
+    val listingTitle: String,
+    val buyerId: Int,
+    val buyerName: String,
+    val sellerId: Int,
+    val sellerName: String,
+    val senderId: Int,
+    val senderName: String,
+    val message: String,
+    val createdAt: Long,
+    val readAt: Long? = null
+)
+
+@Serializable
+data class ConversationResponse(
+    val listingId: Int,
+    val listingTitle: String,
+    val listingImageUrl: String?,
+    val otherUserId: Int,
+    val otherUserName: String,
+    val lastMessage: String,
+    val lastMessageAt: Long,
+    val unreadCount: Int
+)
+
+@Serializable
+data class SellerNotificationResponse(
+    val commentCount: Int,
+    val unreadMessageCount: Int
 )
 
 @Serializable

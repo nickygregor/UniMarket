@@ -1,6 +1,8 @@
 package com.unimarket.data.local
 
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 // ── Entity ────────────────────────────────────────────────────────────────────
@@ -14,8 +16,11 @@ data class ListingEntity(
     val description : String,
     val price       : Double,
     val category    : String,
+    val condition   : String = "Good",
+    val sellerContact : String = "",
     val imageUrl    : String?,
     val isActive    : Boolean,
+    val expiresAt   : Long = 0L,
     val createdAt   : Long
 )
 
@@ -51,12 +56,20 @@ interface ListingDao {
 
 // ── Database ──────────────────────────────────────────────────────────────────
 
-@Database(entities = [ListingEntity::class], version = 1, exportSchema = false)
+@Database(entities = [ListingEntity::class], version = 2, exportSchema = false)
 abstract class UniMarketDatabase : RoomDatabase() {
     abstract fun listingDao(): ListingDao
 
     companion object {
         @Volatile private var INSTANCE: UniMarketDatabase? = null
+
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE cached_listings ADD COLUMN condition TEXT NOT NULL DEFAULT 'Good'")
+                db.execSQL("ALTER TABLE cached_listings ADD COLUMN sellerContact TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE cached_listings ADD COLUMN expiresAt INTEGER NOT NULL DEFAULT 0")
+            }
+        }
 
         fun getInstance(context: android.content.Context): UniMarketDatabase =
             INSTANCE ?: synchronized(this) {
@@ -64,7 +77,10 @@ abstract class UniMarketDatabase : RoomDatabase() {
                     context.applicationContext,
                     UniMarketDatabase::class.java,
                     "unimarket_cache.db"
-                ).build().also { INSTANCE = it }
+                )
+                    .addMigrations(MIGRATION_1_2)
+                    .build()
+                    .also { INSTANCE = it }
             }
     }
 }

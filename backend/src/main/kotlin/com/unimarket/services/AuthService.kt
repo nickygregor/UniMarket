@@ -91,4 +91,27 @@ object AuthService {
             )
         )
     }
+
+    suspend fun changePassword(userDbId: Int, req: ChangePasswordRequest): MessageResponse {
+        if (req.newPassword.length < 8) {
+            throw IllegalArgumentException("New password must be at least 8 characters")
+        }
+
+        val row = dbQuery {
+            Users.selectAll().where { Users.id eq userDbId }.firstOrNull()
+        } ?: throw NoSuchElementException("User not found")
+
+        if (!BCrypt.checkpw(req.currentPassword, row[Users.passwordHash])) {
+            throw IllegalArgumentException("Current password is incorrect")
+        }
+
+        val newHash = BCrypt.hashpw(req.newPassword, BCrypt.gensalt())
+        dbQuery {
+            Users.update({ Users.id eq userDbId }) {
+                it[passwordHash] = newHash
+            }
+        }
+
+        return MessageResponse("Password changed successfully")
+    }
 }

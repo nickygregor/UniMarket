@@ -41,6 +41,8 @@ object Orders : IntIdTable("orders") {
     val status          = varchar("status", 50).default("CONFIRMED")
     // Mock credit card - store last 4 digits only
     val cardLastFour    = varchar("card_last_four", 4).nullable()
+    val fulfillmentMethod = varchar("fulfillment_method", 20).default("PICKUP")
+    val fulfillmentLocation = text("fulfillment_location").default("")
     val createdAt       = long("created_at")
 }
 
@@ -49,4 +51,22 @@ object OrderItems : IntIdTable("order_items") {
     val listingId       = integer("listing_id").references(Listings.id)
     val quantity        = integer("quantity")
     val priceAtPurchase = double("price_at_purchase")
+}
+
+object ListingComments : IntIdTable("listing_comments") {
+    val listingId       = integer("listing_id").references(Listings.id)
+    val authorId        = integer("author_id").references(Users.id)
+    val parentCommentId = integer("parent_comment_id").nullable()
+    val message         = text("message")
+    val createdAt       = long("created_at")
+}
+
+object ChatMessages : IntIdTable("chat_messages") {
+    val listingId = integer("listing_id").references(Listings.id)
+    val buyerId   = integer("buyer_id").references(Users.id)
+    val sellerId  = integer("seller_id").references(Users.id)
+    val senderId  = integer("sender_id").references(Users.id)
+    val message   = text("message")
+    val createdAt = long("created_at")
+    val readAt    = long("read_at").nullable()
 }

@@ -3,6 +3,8 @@ package com.unimarket.routes
 import com.unimarket.models.*
 import com.unimarket.services.AuthService
 import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -47,6 +49,30 @@ fun Route.authRoutes() {
                             }
                         }
                 }
+        }
+
+        authenticate("jwt") {
+            put("/change-password") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userDbId = principal.payload.getClaim("dbId").asInt()
+
+                runCatching { call.receive<ChangePasswordRequest>() }
+                    .onFailure {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid request body"))
+                        return@put
+                    }
+                    .onSuccess { req ->
+                        runCatching { AuthService.changePassword(userDbId, req) }
+                            .onSuccess { call.respond(HttpStatusCode.OK, it) }
+                            .onFailure {
+                                when (it) {
+                                    is IllegalArgumentException -> call.respond(HttpStatusCode.BadRequest, ErrorResponse(it.message ?: "Bad request"))
+                                    is NoSuchElementException -> call.respond(HttpStatusCode.NotFound, ErrorResponse(it.message ?: "Not found"))
+                                    else -> call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Server error"))
+                                }
+                            }
+                    }
+            }
         }
     }
 }

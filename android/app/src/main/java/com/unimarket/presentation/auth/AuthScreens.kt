@@ -1,8 +1,11 @@
 package com.unimarket.presentation.auth
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -16,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.*
@@ -24,6 +28,10 @@ import androidx.compose.ui.unit.sp
 import com.unimarket.R
 import com.unimarket.presentation.AuthViewModel
 import com.unimarket.presentation.UiState
+import com.unimarket.presentation.common.ProfileImage
+import com.unimarket.presentation.common.bitmapToProfileImageData
+import com.unimarket.presentation.common.uriToProfileImageData
+import kotlinx.coroutines.launch
 
 val UniBlue = Color(0xFF60A5FA)
 val UniNavy = Color(0xFF0B1F33)
@@ -82,13 +90,13 @@ fun LoginScreen(
                 text = "Welcome back",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = UniTextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = "Sign in to continue",
                 fontSize = 14.sp,
-                color = UniTextMuted
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             Spacer(Modifier.height(20.dp))
@@ -169,7 +177,7 @@ fun LoginScreen(
             ) {
                 Text(
                     text = "Don't have an account? Register",
-                    color = UniNavy,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 14.sp
                 )
             }
@@ -183,6 +191,8 @@ fun RegisterScreen(
     onSuccess: () -> Unit,
     onLogin: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val state by viewModel.authState.collectAsState()
 
     var firstName by remember { mutableStateOf("") }
@@ -192,7 +202,33 @@ fun RegisterScreen(
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var showPwd by remember { mutableStateOf(false) }
+    var profileImage by remember { mutableStateOf<String?>(null) }
+    var imageBusy by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            imageBusy = true
+            scope.launch {
+                profileImage = uriToProfileImageData(context, uri)
+                imageBusy = false
+            }
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            imageBusy = true
+            scope.launch {
+                profileImage = bitmapToProfileImageData(bitmap)
+                imageBusy = false
+            }
+        }
+    }
 
     LaunchedEffect(state) {
         if (state is UiState.Success) {
@@ -223,14 +259,92 @@ fun RegisterScreen(
                 text = "Student sign up",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = UniTextPrimary
+                color = MaterialTheme.colorScheme.onSurface
             )
 
             Text(
                 text = "One account can both buy and sell",
                 fontSize = 14.sp,
-                color = UniTextMuted
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Spacer(Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(72.dp),
+                    shape = CircleShape,
+                    color = UniAccent.copy(alpha = 0.16f)
+                ) {
+                    ProfileImage(
+                        imageData = profileImage,
+                        contentDescription = "Selected profile picture",
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(Icons.Filled.Person, null, tint = UniAccent, modifier = Modifier.size(34.dp))
+                        }
+                    }
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "Profile picture",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Optional, you can change it later.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(
+                            onClick = {
+                                galleryLauncher.launch("image/*")
+                                errorMsg = null
+                            },
+                            enabled = !imageBusy && state !is UiState.Loading,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = UniAccent.copy(alpha = 0.15f),
+                                contentColor = UniAccent
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.PhotoLibrary, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Gallery", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        FilledTonalButton(
+                            onClick = {
+                                cameraLauncher.launch(null)
+                                errorMsg = null
+                            },
+                            enabled = !imageBusy && state !is UiState.Loading,
+                            colors = ButtonDefaults.filledTonalButtonColors(
+                                containerColor = UniAccent.copy(alpha = 0.15f),
+                                contentColor = UniAccent
+                            ),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Icon(Icons.Filled.PhotoCamera, null, modifier = Modifier.size(15.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Camera", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    if (profileImage != null) {
+                        TextButton(onClick = { profileImage = null }, enabled = state !is UiState.Loading) {
+                            Text("Remove photo", color = Color.Red, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
 
             Spacer(Modifier.height(20.dp))
 
@@ -279,7 +393,7 @@ fun RegisterScreen(
             Text(
                 text = "UTA students only: use your @mavs.uta.edu email",
                 fontSize = 12.sp,
-                color = UniTextMuted,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -363,7 +477,8 @@ fun RegisterScreen(
                                 email = trimmedEmail,
                                 phone = phone.trim(),
                                 userId = username.trim(),
-                                password = password
+                                password = password,
+                                profileImage = profileImage
                             )
                         }
                     }
@@ -402,7 +517,7 @@ fun RegisterScreen(
             ) {
                 Text(
                     text = "Already have an account? Sign in",
-                    color = UniNavy,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 14.sp
                 )
             }
@@ -417,14 +532,15 @@ private fun AuthScreenContainer(
     scrollable: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     val baseModifier = Modifier
         .fillMaxSize()
         .background(
             Brush.verticalGradient(
                 listOf(
-                    Color(0xFFE9F1F9),
-                    UniPage,
-                    Color(0xFFFFF4EA)
+                    colorScheme.surfaceVariant,
+                    colorScheme.background,
+                    colorScheme.primaryContainer.copy(alpha = 0.55f)
                 )
             )
         )
@@ -466,13 +582,13 @@ private fun AuthHeader(
         text = title,
         fontSize = 32.sp,
         fontWeight = FontWeight.Bold,
-        color = UniNavy
+        color = MaterialTheme.colorScheme.onBackground
     )
 
     Text(
         text = subtitle,
         fontSize = 14.sp,
-        color = UniTextMuted
+        color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }
 
@@ -485,10 +601,10 @@ private fun AuthCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
-        color = UniSurface,
+        color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = UniSurfaceBorder
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
         ),
         shadowElevation = 10.dp
     ) {
@@ -520,7 +636,7 @@ fun UniTextField(
         label = {
             Text(
                 text = label,
-                color = UniTextMuted
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         },
         leadingIcon = {
@@ -540,7 +656,7 @@ fun UniTextField(
                             Icons.Filled.Visibility
                         },
                         contentDescription = null,
-                        tint = UniTextMuted
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -555,14 +671,14 @@ fun UniTextField(
         modifier = modifier,
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = UniAccent,
-            unfocusedBorderColor = Color(0xFFD7DFEA),
-            focusedTextColor = UniTextPrimary,
-            unfocusedTextColor = UniTextPrimary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
             cursorColor = UniAccent,
             focusedLabelColor = UniAccent,
-            unfocusedLabelColor = UniTextMuted,
-            focusedContainerColor = Color(0xFFFFFBF7),
-            unfocusedContainerColor = Color.White
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface
         ),
         shape = RoundedCornerShape(14.dp)
     )

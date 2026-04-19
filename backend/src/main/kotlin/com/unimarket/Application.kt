@@ -83,5 +83,6 @@ fun Application.module() {
         cartRoutes()
         orderRoutes()
         adminRoutes()
+        interactionRoutes()
     }
 }

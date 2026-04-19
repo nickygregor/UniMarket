@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.AddCircle
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachMoney
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -41,9 +42,15 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.MarkUnreadChatAlt
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.QuestionAnswer
+import androidx.compose.material.icons.filled.Reply
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -54,13 +61,16 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -78,6 +88,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -86,12 +97,17 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.unimarket.ChatTarget
+import com.unimarket.domain.model.Conversation
 import com.unimarket.domain.model.Listing
+import com.unimarket.domain.model.ListingComment
 import com.unimarket.presentation.SellerViewModel
 import com.unimarket.presentation.UiState
 import com.unimarket.presentation.auth.UniAccent
 import com.unimarket.presentation.auth.UniBlue
 import com.unimarket.presentation.auth.UniNavy
+import com.unimarket.presentation.buyer.ChatScreenScaffold
+import com.unimarket.presentation.buyer.ConversationCard
 import com.unimarket.presentation.buyer.EmptyState
 import com.unimarket.presentation.buyer.ErrorCard
 import com.unimarket.presentation.buyer.fmt
@@ -99,12 +115,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
+import kotlin.math.abs
 import kotlin.math.max
 
 private val FormTextColor = Color(0xFF132033)
 private val FormMutedText = Color(0xFF6B7280)
 private val FormBgColor = Color(0xFFF5F7FA)
 private const val MaxListingImages = 4
+private val ListingConditions = listOf("New", "Like New", "Good", "Fairly Used", "Used")
+private val ListingExpiryOptions = listOf(30, 60, 90)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -113,13 +132,21 @@ fun SellerDashboardScreen(
     onAddListing: () -> Unit,
     onEdit: (Listing) -> Unit,
     onLogout: () -> Unit,
-    onProfileClick: () -> Unit
+    onProfileClick: () -> Unit,
+    onMessagesClick: () -> Unit,
+    onCommentsClick: () -> Unit
 ) {
     val listingsState by viewModel.listings.collectAsState()
+    val commentsState by viewModel.sellerComments.collectAsState()
+    val notificationsState by viewModel.notifications.collectAsState()
     val snackbarHost = remember { SnackbarHostState() }
+    val notifications = (notificationsState as? UiState.Success)?.data
+    val unreadMessages = notifications?.unreadMessageCount ?: 0
+    val commentCount = notifications?.commentCount ?: 0
 
     LaunchedEffect(Unit) {
         viewModel.loadMyListings()
+        viewModel.loadSellerInteractions()
     }
 
     LaunchedEffect(Unit) {
@@ -129,7 +156,7 @@ fun SellerDashboardScreen(
     }
 
     Scaffold(
-        containerColor = FormBgColor,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
@@ -150,6 +177,28 @@ fun SellerDashboardScreen(
                 actions = {
                     IconButton(onClick = onProfileClick) {
                         Icon(Icons.Filled.Person, contentDescription = "Profile", tint = Color.White)
+                    }
+                    IconButton(onClick = onCommentsClick) {
+                        BadgedBox(
+                            badge = {
+                                if (commentCount > 0) {
+                                    Badge { Text("$commentCount") }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Filled.QuestionAnswer, contentDescription = "Comments", tint = Color.White)
+                        }
+                    }
+                    IconButton(onClick = onMessagesClick) {
+                        BadgedBox(
+                            badge = {
+                                if (unreadMessages > 0) {
+                                    Badge { Text("$unreadMessages") }
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Filled.MarkUnreadChatAlt, contentDescription = "Messages", tint = Color.White)
+                        }
                     }
                     IconButton(onClick = onAddListing) {
                         Icon(Icons.Filled.AddCircle, contentDescription = "Add Listing", tint = Color.White)
@@ -198,9 +247,25 @@ fun SellerDashboardScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.padding(padding)
                     ) {
+                        item {
+                            SellerNotificationCard(
+                                notifications = notifications,
+                                onMessagesClick = onMessagesClick,
+                                onCommentsClick = onCommentsClick
+                            )
+                        }
+
                         items(s.data, key = { it.id }) { listing ->
+                            val listingComments = (commentsState as? UiState.Success<List<ListingComment>>)
+                                ?.data
+                                .orEmpty()
+                                .filter { it.listingId == listing.id && it.parentCommentId == null }
                             SellerListingCard(
                                 listing = listing,
+                                comments = listingComments,
+                                onReply = { comment, message ->
+                                    viewModel.replyToComment(listing.id, comment.id, message)
+                                },
                                 onEdit = { onEdit(listing) },
                                 onDelete = { viewModel.deleteListing(listing.id) }
                             )
@@ -217,10 +282,14 @@ fun SellerDashboardScreen(
 @Composable
 fun SellerListingCard(
     listing: Listing,
+    comments: List<ListingComment>,
+    onReply: (ListingComment, String) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var replyingTo by remember { mutableStateOf<ListingComment?>(null) }
+    var replyText by remember { mutableStateOf("") }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -248,7 +317,7 @@ fun SellerListingCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(3.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(16.dp)
     ) {
         Row(
@@ -275,13 +344,20 @@ fun SellerListingCard(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 16.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Text(
-                    text = listing.category,
+                    text = "${listing.category} • ${listing.condition}",
                     fontSize = 12.sp,
-                    color = FormMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Text(
+                    text = expiryStatusText(listing),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 Text(
@@ -302,7 +378,7 @@ fun SellerListingCard(
                     Text(
                         text = "This item was purchased or removed from the marketplace.",
                         fontSize = 11.sp,
-                        color = FormMutedText
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -312,14 +388,414 @@ fun SellerListingCard(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 IconButton(onClick = onEdit) {
-                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = UniNavy)
+                    Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = UniAccent)
                 }
                 IconButton(onClick = { showDeleteDialog = true }) {
                     Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = Color.Red.copy(alpha = 0.75f))
                 }
             }
         }
+
+        if (comments.isNotEmpty()) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Comments from buyers",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                comments.take(3).forEach { comment ->
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text(
+                                comment.authorName,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                comment.message,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            TextButton(onClick = {
+                                replyingTo = comment
+                                replyText = ""
+                            }) {
+                                Icon(Icons.Filled.Reply, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Reply")
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    replyingTo?.let { comment ->
+        AlertDialog(
+            onDismissRequest = { replyingTo = null },
+            title = { Text("Reply to ${comment.authorName}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(comment.message, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                    OutlinedTextField(
+                        value = replyText,
+                        onValueChange = { replyText = it },
+                        label = { Text("Your reply") },
+                        minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (replyText.isNotBlank()) {
+                            onReply(comment, replyText.trim())
+                            replyingTo = null
+                            replyText = ""
+                        }
+                    },
+                    enabled = replyText.isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(containerColor = UniAccent)
+                ) {
+                    Text("Reply")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { replyingTo = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+private fun SellerNotificationCard(
+    notifications: com.unimarket.domain.model.SellerNotificationSummary?,
+    onMessagesClick: () -> Unit,
+    onCommentsClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(Icons.Filled.MarkUnreadChatAlt, null, tint = UniAccent, modifier = Modifier.size(28.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Seller notifications", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    "${notifications?.commentCount ?: 0} comments on your listings • ${notifications?.unreadMessageCount ?: 0} unread messages",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilledTonalButton(onClick = onCommentsClick) {
+                    Text("Comments")
+                }
+                FilledTonalButton(onClick = onMessagesClick) {
+                    Text("Messages")
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SellerCommentsScreen(
+    viewModel: SellerViewModel,
+    onBack: () -> Unit
+) {
+    val commentsState by viewModel.sellerComments.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSellerComments()
+        viewModel.loadNotifications()
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Listing Comments", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = UniNavy,
+                    titleContentColor = Color.White
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Color.White)
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        when (val state = commentsState) {
+            is UiState.Loading -> Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = UniAccent)
+            }
+            is UiState.Error -> Box(Modifier.fillMaxSize().padding(padding)) {
+                ErrorCard(state.msg) { viewModel.loadSellerComments() }
+            }
+            is UiState.Success -> {
+                val parentComments = state.data.filter { it.parentCommentId == null }
+                if (parentComments.isEmpty()) {
+                    EmptyState("No listing comments yet", Icons.Filled.QuestionAnswer)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(parentComments, key = { it.id }) { comment ->
+                            SellerCommentInboxCard(
+                                comment = comment,
+                                replies = state.data.filter { it.parentCommentId == comment.id },
+                                onReply = { message ->
+                                    viewModel.replyToComment(comment.listingId, comment.id, message)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun SellerCommentInboxCard(
+    comment: ListingComment,
+    replies: List<ListingComment>,
+    onReply: (String) -> Unit
+) {
+    var replyText by remember { mutableStateOf("") }
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(comment.authorName, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    com.unimarket.presentation.buyer.formatOrderDate(comment.createdAt),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp
+                )
+            }
+            Text(comment.message, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp)
+
+            replies.forEach { reply ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(start = 20.dp),
+                    color = UniAccent.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(Modifier.padding(10.dp)) {
+                        Text(reply.authorName, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(reply.message, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = replyText,
+                    onValueChange = { replyText = it },
+                    placeholder = { Text("Reply publicly...") },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    maxLines = 3
+                )
+                IconButton(
+                    onClick = {
+                        if (replyText.isNotBlank()) {
+                            onReply(replyText.trim())
+                            replyText = ""
+                        }
+                    },
+                    enabled = replyText.isNotBlank()
+                ) {
+                    Icon(Icons.Filled.Send, null, tint = UniAccent)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SellerMessagesScreen(
+    viewModel: SellerViewModel,
+    onBack: () -> Unit,
+    onOpenChat: (Conversation) -> Unit
+) {
+    val conversationsState by viewModel.conversations.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadConversations()
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = { Text("Messages", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = UniNavy,
+                    titleContentColor = Color.White
+                ),
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = null, tint = Color.White)
+                    }
+                }
+            )
+        }
+    ) { padding ->
+        when (val state = conversationsState) {
+            is UiState.Loading -> Box(
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(color = UniAccent)
+            }
+            is UiState.Error -> Box(Modifier.fillMaxSize().padding(padding)) {
+                ErrorCard(state.msg) { viewModel.loadConversations() }
+            }
+            is UiState.Success -> {
+                if (state.data.isEmpty()) {
+                    EmptyState("No messages yet", Icons.Filled.MarkUnreadChatAlt)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(padding),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(state.data) { conversation ->
+                            SellerConversationCard(
+                                conversation = conversation,
+                                onClick = { onOpenChat(conversation) }
+                            )
+                        }
+                    }
+                }
+            }
+            else -> Unit
+        }
+    }
+}
+
+@Composable
+private fun SellerConversationCard(
+    conversation: Conversation,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(2.dp),
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SellerListingImage(
+                imageUrl = firstListingImageUrl(conversation.listingImageUrl),
+                fallbackUrl = "https://placehold.co/100x100/png",
+                contentDescription = conversation.listingTitle,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(12.dp))
+            )
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        conversation.otherUserName,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (conversation.unreadCount > 0) {
+                        Badge { Text("${conversation.unreadCount}") }
+                    }
+                }
+                Text(
+                    conversation.listingTitle,
+                    color = UniAccent,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    conversation.lastMessage,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SellerChatScreen(
+    viewModel: SellerViewModel,
+    currentUserId: Int?,
+    target: ChatTarget,
+    onBack: () -> Unit
+) {
+    ChatScreenScaffold(
+        title = target.otherUserName,
+        subtitle = target.title,
+        messagesState = viewModel.messages.collectAsState().value,
+        currentUserId = currentUserId,
+        onBack = onBack,
+        onLoad = { viewModel.loadMessages(target.listingId, target.otherUserId) },
+        onSend = { viewModel.sendMessage(target.listingId, target.otherUserId, it) }
+    )
 }
 
 private fun isValidImageUrl(url: String): Boolean {
@@ -342,6 +818,31 @@ private fun listingImageUrls(value: String?): List<String> {
 
 private fun firstListingImageUrl(value: String?): String? {
     return listingImageUrls(value).firstOrNull()
+}
+
+private fun expiryDaysFromListing(listing: Listing?): Int {
+    if (listing == null || listing.expiresAt <= 0L) return 30
+
+    val remainingDays = ((listing.expiresAt - System.currentTimeMillis()) / 86_400_000L)
+        .coerceAtLeast(1L)
+        .toInt()
+
+    return ListingExpiryOptions.minBy { option -> abs(option - remainingDays) }
+}
+
+private fun expiryOptionLabel(days: Int): String = "$days days"
+
+private fun expiryStatusText(listing: Listing): String {
+    if (listing.expiresAt <= 0L) return "Expires after 30 days"
+
+    val remainingDays = ((listing.expiresAt - System.currentTimeMillis()) / 86_400_000L)
+        .coerceAtLeast(0L)
+
+    return if (remainingDays == 0L) {
+        "Expires today"
+    } else {
+        "Expires in $remainingDays day${if (remainingDays == 1L) "" else "s"}"
+    }
 }
 
 @Composable
@@ -440,13 +941,30 @@ private fun CategorySelector(
     categories: List<String>,
     onCategorySelected: (String) -> Unit
 ) {
+    ListingOptionSelector(
+        label = "Category *",
+        selectedValue = selectedCategory,
+        options = categories,
+        leadingIcon = Icons.Filled.Category,
+        onOptionSelected = onCategorySelected
+    )
+}
+
+@Composable
+private fun ListingOptionSelector(
+    label: String,
+    selectedValue: String,
+    options: List<String>,
+    leadingIcon: ImageVector,
+    onOptionSelected: (String) -> Unit
+) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text = "Category *",
+            text = label,
             fontSize = 13.sp,
-            color = FormMutedText,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Medium
         )
 
@@ -458,7 +976,7 @@ private fun CategorySelector(
                     .fillMaxWidth()
                     .clickable { expanded = true },
                 shape = RoundedCornerShape(14.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = androidx.compose.foundation.BorderStroke(
                     width = 1.dp,
                     color = UniAccent.copy(alpha = 0.7f)
@@ -476,13 +994,13 @@ private fun CategorySelector(
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Icon(
-                            Icons.Filled.Category,
+                            leadingIcon,
                             contentDescription = null,
                             tint = UniAccent
                         )
                         Text(
-                            text = selectedCategory,
-                            color = FormTextColor,
+                            text = selectedValue,
+                            color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 15.sp
                         )
                     }
@@ -490,7 +1008,7 @@ private fun CategorySelector(
                     Icon(
                         Icons.Filled.KeyboardArrowDown,
                         contentDescription = null,
-                        tint = Color.Gray
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -500,14 +1018,14 @@ private fun CategorySelector(
                 onDismissRequest = { expanded = false },
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
-                    .background(Color.White)
+                    .background(MaterialTheme.colorScheme.surface)
                     .offset(y = 4.dp)
             ) {
-                categories.forEach { category ->
+                options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(category) },
+                        text = { Text(option) },
                         onClick = {
-                            onCategorySelected(category)
+                            onOptionSelected(option)
                             expanded = false
                         }
                     )
@@ -533,6 +1051,8 @@ fun CreateEditListingScreen(
     var description by remember { mutableStateOf(existingListing?.description ?: "") }
     var priceStr by remember { mutableStateOf(existingListing?.price?.toString() ?: "") }
     var category by remember { mutableStateOf(existingListing?.category ?: "Books") }
+    var condition by remember { mutableStateOf(existingListing?.condition ?: "Good") }
+    var expiryDays by remember { mutableStateOf(expiryDaysFromListing(existingListing)) }
     var imageUrl by remember { mutableStateOf(existingListing?.imageUrl ?: "") }
     var localError by remember { mutableStateOf<String?>(null) }
     var isImageProcessing by remember { mutableStateOf(false) }
@@ -595,7 +1115,7 @@ fun CreateEditListingScreen(
     }
 
     Scaffold(
-        containerColor = FormBgColor,
+        containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
             TopAppBar(
@@ -636,12 +1156,12 @@ fun CreateEditListingScreen(
                     text = "Listing Details",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = FormTextColor
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
                     text = "All fields below are required, including the image link.",
                     fontSize = 13.sp,
-                    color = FormMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -661,14 +1181,14 @@ fun CreateEditListingScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = UniAccent,
-                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.4f),
-                        focusedTextColor = FormTextColor,
-                        unfocusedTextColor = FormTextColor,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedLabelColor = UniAccent,
-                        unfocusedLabelColor = FormMutedText,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         cursorColor = UniAccent,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     )
                 )
             }
@@ -689,14 +1209,14 @@ fun CreateEditListingScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = UniAccent,
-                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.4f),
-                        focusedTextColor = FormTextColor,
-                        unfocusedTextColor = FormTextColor,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedLabelColor = UniAccent,
-                        unfocusedLabelColor = FormMutedText,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         cursorColor = UniAccent,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     )
                 )
             }
@@ -717,14 +1237,14 @@ fun CreateEditListingScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = UniAccent,
-                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.4f),
-                        focusedTextColor = FormTextColor,
-                        unfocusedTextColor = FormTextColor,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedLabelColor = UniAccent,
-                        unfocusedLabelColor = FormMutedText,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         cursorColor = UniAccent,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     ),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Decimal
@@ -744,11 +1264,37 @@ fun CreateEditListingScreen(
             }
 
             item {
+                ListingOptionSelector(
+                    label = "Item Condition *",
+                    selectedValue = condition,
+                    options = ListingConditions,
+                    leadingIcon = Icons.Filled.Inventory2,
+                    onOptionSelected = {
+                        condition = it
+                        localError = null
+                    }
+                )
+            }
+
+            item {
+                ListingOptionSelector(
+                    label = "Ad Expiry *",
+                    selectedValue = expiryOptionLabel(expiryDays),
+                    options = ListingExpiryOptions.map(::expiryOptionLabel),
+                    leadingIcon = Icons.Filled.CalendarMonth,
+                    onOptionSelected = {
+                        expiryDays = it.substringBefore(" ").toIntOrNull() ?: 30
+                        localError = null
+                    }
+                )
+            }
+
+            item {
                 Text(
                     text = "Add Images",
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 15.sp,
-                    color = FormTextColor
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             }
 
@@ -814,14 +1360,14 @@ fun CreateEditListingScreen(
                     shape = RoundedCornerShape(14.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = UniAccent,
-                        unfocusedBorderColor = Color.Gray.copy(alpha = 0.4f),
-                        focusedTextColor = FormTextColor,
-                        unfocusedTextColor = FormTextColor,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
                         focusedLabelColor = UniAccent,
-                        unfocusedLabelColor = FormMutedText,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         cursorColor = UniAccent,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface
                     )
                 )
             }
@@ -830,7 +1376,7 @@ fun CreateEditListingScreen(
                 Text(
                     text = "Choose up to $MaxListingImages images from Photos or Files on the device, or paste one direct image link. The first image is used on listing cards.",
                     fontSize = 12.sp,
-                    color = FormMutedText
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
@@ -899,6 +1445,7 @@ fun CreateEditListingScreen(
                                     trimmedDescription.isBlank() ||
                                     priceStr.isBlank() ||
                                     category.isBlank() ||
+                                    condition.isBlank() ||
                                     trimmedImageUrl.isBlank() -> {
                                 localError = "Please fill in all required listing fields."
                             }
@@ -921,7 +1468,9 @@ fun CreateEditListingScreen(
                                         trimmedDescription,
                                         parsedPrice,
                                         category,
-                                        trimmedImageUrl
+                                        trimmedImageUrl,
+                                        condition,
+                                        expiryDays
                                     )
                                 } else {
                                     viewModel.createListing(
@@ -929,7 +1478,9 @@ fun CreateEditListingScreen(
                                         trimmedDescription,
                                         parsedPrice,
                                         category,
-                                        trimmedImageUrl
+                                        trimmedImageUrl,
+                                        condition,
+                                        expiryDays
                                     )
                                 }
                             }
